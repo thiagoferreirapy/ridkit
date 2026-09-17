@@ -18,7 +18,7 @@ export async function PATCH(request:Request,{params}:{params:Promise<{id:string}
   try { await requireAdmin(["admin","manager"]); const {id}=await params; const productId=parseId(id); const value=adminProductPatchSchema.parse(await request.json()); const {images,variants,...fields}=value;
     if(fields.compare_at_cents===0)fields.compare_at_cents=null;
     const entries=Object.entries(fields); if(!entries.length&&!images&&!variants)throw new Error("BAD_REQUEST:Nenhum campo para atualizar");
-    const allowed=["brand_id","category_id","name","slug","sku","description","price_cents","compare_at_cents","cost_cents","color","finish","shell_material","weight_grams","solar_visor","pinlock_ready","featured","is_new","launch_starts_at","launch_ends_at","offer_starts_at","offer_ends_at","active"];
+    const allowed=["brand_id","category_id","name","slug","sku","description","price_cents","compare_at_cents","cost_cents","color","finish","shell_material","weight_grams","solar_visor","pinlock_ready","featured","is_new","launch_starts_at","launch_ends_at","offer_starts_at","offer_ends_at","active","publication_status","seo_title","seo_description","seo_image_url"];
     const clean=entries.filter(([key])=>allowed.includes(key)); if(value.name&&!value.slug)clean.push(["slug",slugify(value.name)]);
     db.exec("BEGIN IMMEDIATE");
     if(clean.length){const result=db.prepare(`UPDATE products SET ${clean.map(([k])=>`${k}=?`).join(",")},updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(...clean.map(([,v])=>v??null),productId);if(!result.changes)throw new Error("NOT_FOUND");}

@@ -11,6 +11,7 @@
     "start": "next start",
     "lint": "tsc --noEmit",
     "test": "node scripts/smoke.mjs",
+    "test:unit": "node --test tests/*.test.ts",
     "db:seed": "node scripts/seed.mjs",
     "db:reset": "node scripts/seed.mjs"
   },

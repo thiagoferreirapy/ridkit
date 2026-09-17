@@ -13,6 +13,7 @@ export type Product = {
   compareAtCents?: number;
   category?: string;
   sizes?: string[];
+  availableStock?: number;
 };
 
 const unsplash = (id: string) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=1000&q=82`;

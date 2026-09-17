@@ -13,6 +13,7 @@ type ShopState={
   addToCart:(variantId:number,quantity?:number)=>Promise<boolean>;
   updateCartItem:(itemId:number,quantity:number)=>Promise<void>;
   removeCartItem:(itemId:number)=>Promise<void>;
+  clearCart:()=>Promise<void>;
   toggleFavorite:(productId:number)=>Promise<void>;
   isFavorite:(productId?:number)=>boolean;
 };
@@ -32,9 +33,10 @@ export function ShopProvider({children}:{children:React.ReactNode}) {
   const addToCart=async(variantId:number,quantity=1)=>{if(!sessionId)return false;try{await mutate(async()=>setCart(await jsonRequest("/api/cart",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session_id:sessionId,variant_id:variantId,quantity})})));return true;}catch{return false;}};
   const updateCartItem=async(itemId:number,quantity:number)=>{if(!sessionId)return;await mutate(async()=>setCart(await jsonRequest("/api/cart",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({session_id:sessionId,item_id:itemId,quantity})})));};
   const removeCartItem=async(itemId:number)=>{if(!sessionId)return;await mutate(async()=>setCart(await jsonRequest("/api/cart",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({session_id:sessionId,item_id:itemId})})));};
+  const clearCart=async()=>{if(!sessionId)return;await mutate(async()=>{let latest=cart;for(const item of cart.items)latest=await jsonRequest("/api/cart",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({session_id:sessionId,item_id:item.id})});setCart(latest);});};
   const isFavorite=(productId?:number)=>Boolean(productId&&favorites.some(item=>item.id===productId));
   const toggleFavorite=async(productId:number)=>{if(!sessionId)return;const method=isFavorite(productId)?"DELETE":"POST";await mutate(async()=>{const data=await jsonRequest("/api/favorites",{method,headers:{"Content-Type":"application/json"},body:JSON.stringify({session_id:sessionId,product_id:productId})});setFavorites(data.items);});};
-  return <ShopContext.Provider value={{sessionId,cart,favorites,settings,loading,busy,error,addToCart,updateCartItem,removeCartItem,toggleFavorite,isFavorite}}>{children}</ShopContext.Provider>;
+  return <ShopContext.Provider value={{sessionId,cart,favorites,settings,loading,busy,error,addToCart,updateCartItem,removeCartItem,clearCart,toggleFavorite,isFavorite}}>{children}</ShopContext.Provider>;
 }
 
 export function useShop(){const value=useContext(ShopContext);if(!value)throw new Error("useShop deve ser usado dentro de ShopProvider");return value;}

@@ -19,6 +19,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
+      - run: pnpm test:unit
       - run: pnpm build
       - name: Start application
         run: pnpm start > /tmp/ridekit.log 2>&1 &

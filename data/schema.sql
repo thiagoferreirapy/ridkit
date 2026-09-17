@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS categories (
   variation_type TEXT NOT NULL DEFAULT 'none' CHECK(variation_type IN ('none','size','option')),
   variation_label TEXT,
   active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  seo_title TEXT,
+  seo_description TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) STRICT;
 
@@ -54,6 +57,10 @@ CREATE TABLE IF NOT EXISTS products (
   offer_starts_at TEXT,
   offer_ends_at TEXT,
   active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+  publication_status TEXT NOT NULL DEFAULT 'active' CHECK(publication_status IN ('draft','active','archived')),
+  seo_title TEXT,
+  seo_description TEXT,
+  seo_image_url TEXT,
   rating REAL NOT NULL DEFAULT 0,
   review_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -78,6 +85,7 @@ CREATE TABLE IF NOT EXISTS product_variants (
   color TEXT NOT NULL,
   stock INTEGER NOT NULL DEFAULT 0 CHECK(stock >= 0),
   reserved_stock INTEGER NOT NULL DEFAULT 0 CHECK(reserved_stock >= 0),
+  min_stock INTEGER NOT NULL DEFAULT 0 CHECK(min_stock >= 0),
   price_cents INTEGER,
   active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
   UNIQUE(product_id, size, color)
@@ -195,6 +203,7 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_id INTEGER NOT NULL REFERENCES customers(id),
   coupon_id INTEGER REFERENCES coupons(id) ON DELETE SET NULL,
   order_number TEXT NOT NULL UNIQUE,
+  idempotency_key TEXT,
   status TEXT NOT NULL CHECK(status IN ('pending','paid','preparing','shipped','delivered','cancelled','refunded')),
   payment_method TEXT NOT NULL CHECK(payment_method IN ('pix','credit_card','two_cards')),
   payment_status TEXT NOT NULL CHECK(payment_status IN ('pending','approved','failed','refunded')),
@@ -246,6 +255,19 @@ CREATE TABLE IF NOT EXISTS order_events (
   title TEXT NOT NULL,
   description TEXT,
   occurred_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS inventory_movements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  variant_id INTEGER NOT NULL REFERENCES product_variants(id),
+  order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+  admin_id INTEGER REFERENCES admin_users(id) ON DELETE SET NULL,
+  movement_type TEXT NOT NULL CHECK(movement_type IN ('entry','sale','reservation','release','adjustment','return')),
+  quantity INTEGER NOT NULL,
+  stock_after INTEGER,
+  reserved_after INTEGER,
+  reason TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS reviews (
