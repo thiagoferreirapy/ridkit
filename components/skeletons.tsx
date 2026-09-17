@@ -1,0 +1,13 @@
+type SkeletonProps={className?:string};
+
+export function Skeleton({className=""}:SkeletonProps){return <span aria-hidden="true" className={`skeleton block rounded-xl bg-[#e8eaed] ${className}`}/>;}
+
+export function ProductDetailsSkeleton(){return <div className="container-page py-7 md:py-10" aria-label="Carregando produto"><Skeleton className="mb-6 h-3 w-56"/><div className="grid gap-8 lg:grid-cols-[1.08fr_.92fr]"><Skeleton className="aspect-square w-full rounded-3xl"/><div className="space-y-5 lg:pl-8"><Skeleton className="h-3 w-20"/><Skeleton className="h-11 w-4/5"/><Skeleton className="h-5 w-36"/><Skeleton className="h-9 w-44"/><Skeleton className="h-px w-full rounded-none"/><Skeleton className="h-5 w-52"/><div className="flex gap-2"><Skeleton className="h-11 w-16"/><Skeleton className="h-11 w-16"/><Skeleton className="h-11 w-16"/></div><Skeleton className="h-12 w-full"/><Skeleton className="h-12 w-full"/></div></div></div>}
+
+export function CardListSkeleton({rows=4,images=false}:{rows?:number;images?:boolean}){return <div className="grid gap-4" aria-label="Carregando conteúdo">{Array.from({length:rows},(_,index)=><div className="card flex items-center gap-4 p-5" key={index}>{images&&<Skeleton className="size-20 shrink-0"/>}<div className="min-w-0 flex-1 space-y-3"><Skeleton className="h-4 w-2/5"/><Skeleton className="h-3 w-3/4"/><Skeleton className="h-3 w-1/3"/></div><Skeleton className="h-8 w-24 shrink-0"/></div>)}</div>}
+
+export function AccountSkeleton(){return <div className="grid gap-4 md:grid-cols-2" aria-label="Carregando dados da conta">{Array.from({length:4},(_,index)=><div className="card space-y-4 p-5" key={index}><Skeleton className="size-10"/><Skeleton className="h-4 w-1/3"/><Skeleton className="h-3 w-4/5"/><Skeleton className="h-3 w-2/3"/></div>)}</div>}
+
+export function TableSkeleton({rows=6,columns=5}:{rows?:number;columns?:number}){return <div className="card overflow-hidden" aria-label="Carregando tabela"><div className="border-b border-line bg-canvas p-4"><Skeleton className="h-4 w-40"/></div>{Array.from({length:rows},(_,row)=><div className="grid gap-5 border-b border-line p-4 last:border-0" style={{gridTemplateColumns:`repeat(${columns}, minmax(80px, 1fr))`}} key={row}>{Array.from({length:columns},(_,column)=><Skeleton className={`h-3 ${column===0?"w-4/5":"w-2/3"}`} key={column}/>)}</div>)}</div>}
+
+export function FormSkeleton(){return <div className="card grid gap-5 p-6 md:grid-cols-2" aria-label="Carregando formulário">{Array.from({length:6},(_,index)=><div className={index===0||index===5?"md:col-span-2":""} key={index}><Skeleton className="h-3 w-24"/><Skeleton className="mt-2 h-12 w-full"/></div>)}</div>}

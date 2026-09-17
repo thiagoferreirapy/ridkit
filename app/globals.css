@@ -33,8 +33,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .hero-content-in { animation: hero-content-in .55s ease-out both; }
 
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton { background-image: linear-gradient(90deg,#e8eaed 25%,#f5f6f7 45%,#e8eaed 65%); background-size: 220% 100%; animation: skeleton-shimmer 1.35s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
-  .hero-content-in { animation: none; }
+  .hero-content-in, .skeleton { animation: none; }
 }
 
 @media (min-width: 768px) {

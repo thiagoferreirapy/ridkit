@@ -1,0 +1,1 @@
+import { ADMIN_REFRESH,clearAdminCookies,revokeAdminRefresh } from "@/lib/admin-auth";import { ok } from "@/lib/api";import { cookies } from "next/headers";export const runtime="nodejs";export async function POST(){revokeAdminRefresh((await cookies()).get(ADMIN_REFRESH)?.value);await clearAdminCookies();return ok({logged_out:true});}

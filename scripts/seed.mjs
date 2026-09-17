@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomBytes, scryptSync } from "node:crypto";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
@@ -9,6 +10,9 @@ const dbPath = process.env.DATABASE_PATH || path.join(root, "data", "ridekit.sql
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 const db = new DatabaseSync(dbPath, { timeout: 5000 });
 db.exec(fs.readFileSync(path.join(root, "data", "schema.sql"), "utf8"));
+const categoryColumns=db.prepare("PRAGMA table_info(categories)").all();
+if(!categoryColumns.some(column=>column.name==="variation_type"))db.exec("ALTER TABLE categories ADD COLUMN variation_type TEXT NOT NULL DEFAULT 'none' CHECK(variation_type IN ('none','size','option'))");
+if(!categoryColumns.some(column=>column.name==="variation_label"))db.exec("ALTER TABLE categories ADD COLUMN variation_label TEXT");
 
 const image = (id, w = 1200) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=82`;
 const photos = [
@@ -57,7 +61,7 @@ function slug(value) { return value.toLowerCase().normalize("NFD").replace(/[\u0
 
 db.exec("BEGIN IMMEDIATE");
 try {
-  for (const table of ["reviews","order_events","order_items","orders","favorite_items","cart_items","carts","addresses","customers","coupons","product_variants","product_images","products","categories","brands"]) db.exec(`DELETE FROM ${table}`);
+  for (const table of ["reviews","order_events","order_items","orders","search_history","favorite_items","cart_items","carts","addresses","refresh_tokens","customers","admin_refresh_tokens","admin_users","coupons","product_variants","product_images","products","categories","brands"]) db.exec(`DELETE FROM ${table}`);
   db.exec("DELETE FROM sqlite_sequence");
 
   const brandInsert = db.prepare("INSERT INTO brands(name,slug,country,description) VALUES(?,?,?,?)");
@@ -65,6 +69,7 @@ try {
   const categoryInsert = db.prepare("INSERT INTO categories(name,slug,description,image_url) VALUES(?,?,?,?)");
   const categoryIds = categories.map(([name, categorySlug], i) => id(categoryInsert.run(name, categorySlug, `Seleção de ${name.toLowerCase()} para diferentes estilos de pilotagem.`, image(photos[i % photos.length][0]))));
 
+  db.exec("UPDATE categories SET variation_type='size',variation_label='Tamanho' WHERE slug IN ('fechados','articulados','abertos','off-road')");
   const productInsert = db.prepare(`INSERT INTO products(brand_id,category_id,name,slug,sku,description,price_cents,compare_at_cents,cost_cents,color,finish,shell_material,weight_grams,solar_visor,pinlock_ready,featured,rating,review_count) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const imageInsert = db.prepare("INSERT INTO product_images(product_id,url,alt,photographer,photographer_url,position) VALUES(?,?,?,?,?,?)");
   const variantInsert = db.prepare("INSERT INTO product_variants(product_id,sku,size,color,stock,reserved_stock,price_cents) VALUES(?,?,?,?,?,?,?)");
@@ -84,8 +89,11 @@ try {
   const customerInsert = db.prepare("INSERT INTO customers(name,email,cpf,phone,password_hash) VALUES(?,?,?,?,?)");
   const addressInsert = db.prepare("INSERT INTO addresses(customer_id,label,zip_code,street,number,complement,district,city,state,is_default) VALUES(?,?,?,?,?,?,?,?,?,?)");
   const customerNames = ["Carlos Silva","Ana Lima","João Souza","Camila Rocha","Rodrigo Alves","Marina Costa","Lucas Martins","Beatriz Melo","Felipe Santos","Juliana Freitas","Rafael Nunes","Larissa Gomes"];
+  const demoSalt=randomBytes(16).toString("hex"); const demoPassword=`${demoSalt}:${scryptSync("Ridekit123!",demoSalt,64).toString("hex")}`;
+  const adminSalt=randomBytes(16).toString("hex"); const adminPassword=`${adminSalt}:${scryptSync("Admin123!",adminSalt,64).toString("hex")}`;
+  db.prepare("INSERT INTO admin_users(name,email,password_hash,role) VALUES(?,?,?,'admin')").run("Administrador Ridekit","admin@ridekit.com.br",adminPassword);
   const customerIds = customerNames.map((name, i) => {
-    const customerId = id(customerInsert.run(name, `${slug(name)}@example.com`, `${String(10000000000 + i * 123457).padStart(11,"0")}`, `(11) 9${String(80000000 + i * 713).padStart(8,"0")}`, "demo-not-for-production"));
+    const customerId = id(customerInsert.run(name, `${slug(name)}@example.com`, `${String(10000000000 + i * 123457).padStart(11,"0")}`, `(11) 9${String(80000000 + i * 713).padStart(8,"0")}`, demoPassword));
     addressInsert.run(customerId, "Casa", `01${String(100 + i).padStart(3,"0")}-000`, "Rua das Pilotas", String(100 + i), i % 2 ? "Apto 42" : null, "Centro", i % 3 ? "São Paulo" : "Campinas", "SP", 1);
     return customerId;
   });

@@ -1,16 +1,18 @@
 import { getDb } from "@/lib/db";
 import { apiError, created, ok, pagination, slugify } from "@/lib/api";
 import { productSchema } from "@/lib/schemas";
+import { requireAdmin } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url); const { page, limit, offset } = pagination(url.searchParams);
-    const where = ["p.active = 1"]; const params: (string|number)[] = [];
+    const adminView=url.searchParams.get("admin")==="1"; if(adminView)await requireAdmin();
+    const where = [adminView?"1=1":"p.active = 1"]; const params: (string|number)[] = [];
     const q = url.searchParams.get("q"); const brand = url.searchParams.get("brand"); const category = url.searchParams.get("category"); const size = url.searchParams.get("size");
     const min = Number(url.searchParams.get("min_price")); const max = Number(url.searchParams.get("max_price")); const featured = url.searchParams.get("featured");
-    if (q) { where.push("(p.name LIKE ? OR p.description LIKE ? OR p.sku LIKE ?)"); params.push(`%${q}%`,`%${q}%`,`%${q}%`); }
+    if (q) { where.push("(p.name LIKE ? COLLATE NOCASE OR p.description LIKE ? COLLATE NOCASE OR p.sku LIKE ? COLLATE NOCASE OR b.name LIKE ? COLLATE NOCASE OR c.name LIKE ? COLLATE NOCASE)"); params.push(`%${q}%`,`%${q}%`,`%${q}%`,`%${q}%`,`%${q}%`); }
     if (brand) { where.push("b.slug = ?"); params.push(brand); }
     if (category) { where.push("c.slug = ?"); params.push(category); }
     if (size) { where.push("EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id=p.id AND pv.active=1 AND pv.size=?)"); params.push(size); }
@@ -24,7 +26,7 @@ export async function GET(request: Request) {
     const data=db.prepare(`SELECT p.*, b.name AS brand, b.slug AS brand_slug, c.name AS category, c.slug AS category_slug,
       (SELECT url FROM product_images WHERE product_id=p.id ORDER BY position LIMIT 1) AS image_url,
       (SELECT photographer FROM product_images WHERE product_id=p.id ORDER BY position LIMIT 1) AS photographer,
-      (SELECT GROUP_CONCAT(size,'|') FROM (SELECT DISTINCT pv.size AS size FROM product_variants pv WHERE pv.product_id=p.id AND pv.active=1 AND pv.size<>'Único' ORDER BY CASE pv.size WHEN '56 / S' THEN 1 WHEN '58 / M' THEN 2 WHEN '60 / L' THEN 3 WHEN '62 / XL' THEN 4 ELSE 5 END)) AS sizes_csv,
+      (CASE WHEN c.variation_type='size' THEN (SELECT GROUP_CONCAT(size,'|') FROM (SELECT DISTINCT pv.size AS size FROM product_variants pv WHERE pv.product_id=p.id AND pv.active=1 AND pv.size<>'Único' ORDER BY CASE pv.size WHEN '56 / S' THEN 1 WHEN '58 / M' THEN 2 WHEN '60 / L' THEN 3 WHEN '62 / XL' THEN 4 ELSE 5 END)) END) AS sizes_csv,
       COALESCE((SELECT SUM(stock-reserved_stock) FROM product_variants WHERE product_id=p.id AND active=1),0) AS available_stock
       FROM products p JOIN brands b ON b.id=p.brand_id JOIN categories c ON c.id=p.category_id
       WHERE ${whereSql} ORDER BY ${order} LIMIT ? OFFSET ?`).all(...params,limit,offset);
@@ -35,6 +37,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const db=getDb();
   try {
+    await requireAdmin(["admin","manager"]);
     const value=productSchema.parse(await request.json()); const productSlug=value.slug||slugify(value.name);
     db.exec("BEGIN IMMEDIATE");
     const result=db.prepare(`INSERT INTO products(brand_id,category_id,name,slug,sku,description,price_cents,compare_at_cents,cost_cents,color,finish,shell_material,weight_grams,solar_visor,pinlock_ready,featured,active) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(value.brand_id,value.category_id,value.name,productSlug,value.sku,value.description,value.price_cents,value.compare_at_cents??null,value.cost_cents,value.color,value.finish??null,value.shell_material??null,value.weight_grams??null,value.solar_visor,value.pinlock_ready,value.featured,value.active);

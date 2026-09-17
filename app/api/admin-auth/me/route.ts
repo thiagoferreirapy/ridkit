@@ -1,0 +1,1 @@
+import { requireAdmin } from "@/lib/admin-auth";import { apiError,ok } from "@/lib/api";export const runtime="nodejs";export async function GET(){try{return ok({user:await requireAdmin()});}catch(error){return apiError(error);}}

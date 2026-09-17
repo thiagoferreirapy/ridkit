@@ -2,12 +2,15 @@
   "name": "ridekit-helmet-store",
   "version": "1.0.0",
   "private": true,
-  "engines": { "node": ">=24.0.0" },
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "tsc --noEmit",
+    "test": "node scripts/smoke.mjs",
     "db:seed": "node scripts/seed.mjs",
     "db:reset": "node scripts/seed.mjs"
   },
@@ -16,6 +19,7 @@
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "recharts": "^3.10.1",
     "zod": "^4.5.4"
   },
   "devDependencies": {

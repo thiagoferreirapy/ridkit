@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowRight, Check, ChevronDown, Heart, Menu, Minus, Package, Search,
   ShieldCheck, ShoppingBag, SlidersHorizontal, Star, Truck, User, X, Plus,
@@ -26,16 +27,25 @@ export function Button({ children, href, variant = "primary", className = "", on
 }
 
 export function Header() {
+  const router=useRouter();
   const [menu, setMenu] = useState(false);
   const [search, setSearch] = useState(false);
+  const [searchQuery,setSearchQuery]=useState("");
+  const [searchData,setSearchData]=useState<{items:{id:number;slug:string;name:string;brand:string;category:string;price_cents:number;image_url?:string}[];recent:{query:string;results_count:number}[];popular:{query:string}[]}>({items:[],recent:[],popular:[]});
+  const [searchLoading,setSearchLoading]=useState(false);
   const [cart, setCart] = useState(false);
-  const {cart:cartData,removeCartItem}=useShop();
+  const {sessionId,cart:cartData,removeCartItem,settings}=useShop();
+  useEffect(()=>{if(!search||!sessionId)return;const controller=new AbortController();const timer=setTimeout(async()=>{setSearchLoading(true);try{const response=await fetch(`/api/search?session_id=${encodeURIComponent(sessionId)}&q=${encodeURIComponent(searchQuery)}`,{signal:controller.signal});const payload=await response.json();if(response.ok)setSearchData(payload.data);}catch(error){if((error as Error).name!=="AbortError")console.error(error);}finally{setSearchLoading(false);}},searchQuery?220:0);return()=>{clearTimeout(timer);controller.abort();};},[search,searchQuery,sessionId]);
+  const saveSearch=(query:string)=>fetch("/api/search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session_id:sessionId,query})});
+  const runSearch=async(query:string)=>{const value=query.trim();if(value.length<2)return;await saveSearch(value);setSearch(false);setSearchQuery("");router.push(`/busca?q=${encodeURIComponent(value)}`);};
+  const openProduct=async(item:{slug:string;name:string})=>{await saveSearch(searchQuery.trim()||item.name);setSearch(false);setSearchQuery("");router.push(`/produto/${item.slug}`);};
+  const clearRecent=async()=>{await fetch(`/api/search?session_id=${encodeURIComponent(sessionId)}`,{method:"DELETE"});setSearchData(current=>({...current,recent:[]}));};
   return (
     <>
       <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur">
         <div className="hidden h-8 bg-dark text-white md:block">
           <div className="container-page flex h-full items-center gap-6 text-[11px] font-medium">
-            <span>Frete grátis acima de R$ 299</span><span>10x sem juros</span><span>5% no Pix</span>
+            <span>{settings.topbar_message}</span>
           </div>
         </div>
         <div className="container-page flex h-16 items-center gap-3 md:h-20 md:gap-6">
@@ -55,15 +65,14 @@ export function Header() {
       {menu && <Overlay onClose={() => setMenu(false)} side="left">
         <div className="flex items-center justify-between"><b className="text-xl">RIDEKIT</b><Close onClick={() => setMenu(false)}/></div>
         <p className="mt-8 text-xs font-semibold uppercase tracking-widest text-muted">Comprar</p>
-        <div className="mt-3 grid gap-1">{[["Categorias","/capacetes"],["Marcas","/marcas"],["Ofertas","/ofertas"],["Lançamentos","/capacetes?sort=newest"],["Favoritos","/conta/favoritos"]].map(([n,h])=><Link onClick={()=>setMenu(false)} className="rounded-xl px-3 py-3 text-lg font-semibold hover:bg-canvas" href={h} key={n}>{n}</Link>)}</div>
+        <div className="mt-3 grid gap-1">{[["Categorias","/capacetes"],["Marcas","/marcas"],["Ofertas","/ofertas"],["Lançamentos","/capacetes?sort=newest"],["Favoritos","/conta/favoritos"],["Minha conta","/conta"]].map(([n,h])=><Link onClick={()=>setMenu(false)} className="rounded-xl px-3 py-3 text-lg font-semibold hover:bg-canvas" href={h} key={n}>{n}</Link>)}</div>
         <div className="mt-8 rounded-2xl bg-dark p-5 text-white"><p className="text-lg font-semibold">Precisa de ajuda?</p><p className="mt-2 text-sm text-[#aeb4bd]">Fale com quem entende de equipamento.</p><Button href="/contato" className="mt-4 w-full">Falar com a Ridekit</Button></div>
       </Overlay>}
 
       {search && <div className="fixed inset-0 z-50 bg-dark/70 p-4 backdrop-blur-sm" onMouseDown={()=>setSearch(false)}>
         <div className="mx-auto mt-10 max-w-3xl rounded-3xl bg-white p-5 shadow-2xl" onMouseDown={e=>e.stopPropagation()}>
-          <div className="flex gap-3"><div className="flex flex-1 items-center gap-3 rounded-xl border border-line px-4"><Search size={19}/><input autoFocus className="h-12 min-w-0 flex-1 outline-none" placeholder="O que você procura?"/></div><Close onClick={()=>setSearch(false)}/></div>
-          <p className="mt-6 text-xs font-semibold uppercase tracking-widest text-muted">Buscas populares</p>
-          <div className="mt-3 flex flex-wrap gap-2">{["LS2 fechado preto","Capacete articulado","Viseira fumê","Luvas","Intercomunicador"].map(x=><Link href="/capacetes" onClick={()=>setSearch(false)} className="rounded-full border border-line px-4 py-2 text-sm hover:border-ink" key={x}>{x}</Link>)}</div>
+          <form className="flex gap-3" onSubmit={event=>{event.preventDefault();runSearch(searchQuery);}}><div className="flex flex-1 items-center gap-3 rounded-xl border border-line px-4"><Search size={19}/><input value={searchQuery} onChange={event=>setSearchQuery(event.target.value)} autoFocus className="h-12 min-w-0 flex-1 outline-none" placeholder="O que você procura?"/>{searchLoading&&<span className="size-4 animate-spin rounded-full border-2 border-line border-t-accent"/>}</div><Close onClick={()=>setSearch(false)}/></form>
+          {searchQuery.trim().length>=2?<div className="mt-5"><p className="text-xs font-semibold uppercase tracking-widest text-muted">Produtos encontrados</p>{searchData.items.length?<div className="mt-3 grid max-h-[55vh] gap-2 overflow-y-auto">{searchData.items.map(item=><button type="button" onClick={()=>openProduct(item)} className="flex items-center gap-4 rounded-2xl border border-line p-3 text-left transition hover:border-ink hover:bg-canvas" key={item.id}>{item.image_url?<img src={item.image_url} alt="" className="size-16 rounded-xl object-cover"/>:<div className="size-16 rounded-xl bg-canvas"/>}<span className="min-w-0 flex-1"><span className="block text-[10px] font-semibold uppercase tracking-wider text-muted">{item.brand} · {item.category}</span><b className="mt-1 block truncate text-sm">{item.name}</b><span className="mt-1 block text-sm">{formatMoney(item.price_cents)}</span></span><ArrowRight size={17}/></button>)}</div>:!searchLoading&&<div className="mt-3 rounded-2xl bg-canvas p-6 text-center text-sm text-muted">Nenhum produto corresponde a “{searchQuery}”. Tente uma marca, categoria ou modelo.</div>}</div>:<div className="mt-6 grid gap-6">{searchData.recent.length>0&&<div><div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-widest text-muted">Buscas recentes</p><button onClick={clearRecent} className="text-xs font-semibold text-muted hover:text-ink">Limpar</button></div><div className="mt-3 flex flex-wrap gap-2">{searchData.recent.map(item=><button type="button" onClick={()=>runSearch(item.query)} className="rounded-full border border-line px-4 py-2 text-sm hover:border-ink" key={item.query}>{item.query} <span className="text-muted">({item.results_count})</span></button>)}</div></div>}<div><p className="text-xs font-semibold uppercase tracking-widest text-muted">Buscas populares</p><div className="mt-3 flex flex-wrap gap-2">{searchData.popular.map(item=><button type="button" onClick={()=>runSearch(item.query)} className="rounded-full border border-line px-4 py-2 text-sm hover:border-ink" key={item.query}>{item.query}</button>)}</div></div></div>}
         </div>
       </div>}
 
@@ -75,7 +84,7 @@ export function Header() {
   );
 }
 
-function Close({onClick}:{onClick:()=>void}) { return <button onClick={onClick} className="focus-ring rounded-xl border border-line p-2"><X size={20}/></button>; }
+function Close({onClick}:{onClick:()=>void}) { return <button type="button" onClick={onClick} className="focus-ring rounded-xl border border-line p-2"><X size={20}/></button>; }
 function Overlay({children,onClose,side}:{children:React.ReactNode;onClose:()=>void;side:"left"|"right"}) { return <div className="fixed inset-0 z-50 bg-dark/60 backdrop-blur-sm" onMouseDown={onClose}><aside onMouseDown={e=>e.stopPropagation()} className={`absolute inset-y-0 ${side === "left" ? "left-0" : "right-0"} w-[min(390px,92vw)] overflow-y-auto bg-white p-6 shadow-2xl`}>{children}</aside></div>; }
 
 function MiniCartItem({item,onRemove}:{item:CartItem;onRemove:()=>void}) { return <div className="flex gap-4 rounded-2xl border border-line p-3"><ProductVisual image={item.image_url} className="size-20 shrink-0"/><div className="min-w-0 flex-1"><div className="flex gap-2"><b className="min-w-0 flex-1 truncate text-sm">{item.name}</b><button onClick={onRemove} aria-label={`Remover ${item.name}`} className="text-muted hover:text-danger"><X size={15}/></button></div><p className="mt-1 text-xs text-muted">{item.color} · {item.size}</p><div className="mt-3 flex items-center justify-between"><span className="text-xs">Qtd. {item.quantity}</span><b className="text-sm">{formatMoney(item.total_cents)}</b></div></div></div>; }
@@ -87,14 +96,14 @@ export function ProductVisual({tone="from-zinc-950 to-zinc-700", className="", i
 }
 
 export function ProductCard({product, compact=false}:{product:Product;compact?:boolean}) {
-  const {toggleFavorite,isFavorite,busy}=useShop(); const favorite=isFavorite(product.id);
+  const {toggleFavorite,isFavorite,busy,settings}=useShop(); const favorite=isFavorite(product.id);
   return <article className="group rounded-[18px] border border-line bg-white p-3 transition hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(11,13,16,.10)] md:p-4">
-      <div className="relative"><Link href={`/produto/${product.slug}`} className="block"><ProductVisual tone={product.tone} image={product.image} className={compact?"aspect-square":"aspect-[1.15]"}/></Link>{product.tag&&<span className="absolute left-3 top-3 rounded-full bg-white px-2.5 py-1 text-[9px] font-bold tracking-wide">{product.tag}</span>}<button disabled={!product.id||busy} onClick={()=>product.id&&toggleFavorite(product.id)} aria-label={favorite?`Remover ${product.name} dos favoritos`:`Adicionar ${product.name} aos favoritos`} aria-pressed={favorite} className={`focus-ring absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-white/90 transition ${favorite?"text-accent":"text-muted hover:text-accent"}`}><Heart size={17} className={favorite?"fill-current":""}/></button>{product.photographer&&<span className="pointer-events-none absolute bottom-2 left-2 rounded bg-dark/65 px-2 py-1 text-[8px] text-white/80">Foto: {product.photographer} · Unsplash</span>}</div>
+      <div className="relative"><Link href={`/produto/${product.slug}`} className="block"><ProductVisual tone={product.tone} image={product.image} className={compact?"aspect-square":"aspect-[1.15]"}/></Link>{product.tag&&<span className="absolute left-3 top-3 rounded-full bg-white px-2.5 py-1 text-[9px] font-bold tracking-wide">{product.tag}</span>}<button disabled={!product.id||busy} onClick={()=>product.id&&toggleFavorite(product.id)} aria-label={favorite?`Remover ${product.name} dos favoritos`:`Adicionar ${product.name} aos favoritos`} aria-pressed={favorite} className={`focus-ring absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-white/90 transition ${favorite?"text-accent":"text-muted hover:text-accent"}`}><Heart size={17} className={favorite?"fill-current":""}/></button></div>
     <Link href={`/produto/${product.slug}`} className="block">
       <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-muted">{product.brand}</p>
       <h3 className="mt-1 truncate text-sm font-semibold md:text-base">{product.name}</h3>
       <div className="mt-2 flex items-baseline gap-2">{product.oldPrice&&<s className="text-xs text-muted">{product.oldPrice}</s>}<b className="text-base md:text-lg">{product.price}</b></div>
-      <p className="mt-1 text-[10px] text-muted md:text-xs">10x sem juros · 5% no Pix</p>
+      <p className="mt-1 text-[10px] text-muted md:text-xs">{settings.max_installments}x sem juros · {settings.pix_discount_percent}% no Pix</p>
       {product.sizes&&product.sizes.length>0&&<div className="mt-3 flex flex-wrap gap-1.5" aria-label="Tamanhos disponíveis">{product.sizes.map(size=><span key={size} className="grid h-8 min-w-8 place-items-center rounded-lg border border-line px-2 text-[11px]">{size.replace(" / ","/")}</span>)}</div>}
     </Link>
   </article>;
@@ -109,13 +118,14 @@ export function Footer() {
         <FooterColumn title="Comprar" links={[["Capacetes","/capacetes"],["Equipamentos","/capacetes"],["Acessórios","/capacetes"],["Ofertas","/ofertas"],["Lançamentos","/capacetes"]]}/>
         <FooterColumn title="Ajuda" links={[["Central de ajuda","/ajuda"],["Trocas e devoluções","/ajuda/devolucoes"],["Guia de tamanho","/guia-de-tamanho"],["Rastrear pedido","/conta/pedidos"],["Fale conosco","/contato"]]}/>
         <FooterColumn title="Institucional" links={[["Sobre a Ridekit","/sobre"],["Política de privacidade","/privacidade"],["Termos de uso","/termos"],["Garantia","/garantia"],["Segurança","/garantia"]]}/>
-        <div className="col-span-2 md:col-span-1"><b>Receba ofertas e lançamentos</b><p className="mt-3 text-xs leading-5 text-[#aeb4bd]">Conteúdo útil, promoções e novidades. Sem avalanche de spam.</p><div className="mt-4 flex gap-2"><input aria-label="Seu e-mail" className="min-w-0 flex-1 rounded-xl bg-[#1a1d22] px-4 text-sm outline-none" placeholder="Seu e-mail"/><Button>Cadastrar</Button></div></div>
+        <NewsletterSignup/>
       </div>
       <div className="mt-10 flex flex-wrap gap-5 border-t border-white/15 pt-6 text-xs text-[#c8cdd4]"><span>Compra segura</span><span>Nota fiscal</span><span>Troca facilitada</span><span>Pix e cartão</span><span>Atendimento humano</span></div>
       <p className="mt-8 text-[11px] text-[#7f8791]">© 2026 Ridekit · Todos os direitos reservados · CNPJ 00.000.000/0001-00</p>
     </div>
   </footer>;
 }
+function NewsletterSignup(){const [status,setStatus]=useState(""),[busy,setBusy]=useState(false);const submit=async(event:React.FormEvent<HTMLFormElement>)=>{event.preventDefault();setBusy(true);const form=event.currentTarget,email=String(new FormData(form).get("email")||""),response=await fetch("/api/newsletter",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})}),payload=await response.json();setStatus(response.ok?"Cadastro realizado.":payload.error||"Não foi possível cadastrar.");if(response.ok)form.reset();setBusy(false);};return <div className="col-span-2 md:col-span-1"><b>Receba ofertas e lançamentos</b><p className="mt-3 text-xs leading-5 text-[#aeb4bd]">Conteúdo útil, promoções e novidades. Sem avalanche de spam.</p><form onSubmit={submit} className="mt-4 flex gap-2"><input required type="email" name="email" aria-label="Seu e-mail" className="min-w-0 flex-1 rounded-xl bg-[#1a1d22] px-4 text-sm outline-none" placeholder="Seu e-mail"/><button disabled={busy} className="min-h-11 rounded-xl bg-accent px-5 text-sm font-semibold text-white">{busy?"Enviando…":"Cadastrar"}</button></form>{status&&<p role="status" className="mt-2 text-xs text-[#aeb4bd]">{status}</p>}</div>;}
 function FooterColumn({title,links}:{title:string;links:string[][]}) { return <div><b>{title}</b><div className="mt-3 grid gap-2.5 text-xs text-[#aeb4bd]">{links.map(([n,h])=><Link className="hover:text-white" href={h} key={n}>{n}</Link>)}</div></div>; }
 
 export function TrustStrip() { return <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[[ShieldCheck,"Produto original","Procedência, nota fiscal e garantia."],[Package,"Troca facilitada","Processo simples para tamanho e devolução."],[Truck,"Entrega rastreável","Acompanhe cada etapa do pedido."],[User,"Atendimento humano","Ajuda por chat e WhatsApp."]].map(([Icon,t,d])=><div className="card p-5" key={String(t)}><Icon size={22} className="text-accent"/><b className="mt-4 block text-sm">{String(t)}</b><p className="mt-2 text-xs leading-5 text-muted">{String(d)}</p></div>)}</div>; }
