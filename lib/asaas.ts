@@ -1,5 +1,5 @@
 type AsaasCustomer={id:string};
-type AsaasPayment={id:string;status:string};
+export type AsaasPayment={id:string;status:string;paymentDate?:string;confirmedDate?:string};
 export type AsaasPixQrCode={encodedImage:string;payload:string;expirationDate:string};
 
 const apiUrl=()=>process.env.ASAAS_API_URL||"https://api-sandbox.asaas.com/v3";
@@ -26,3 +26,4 @@ export async function createAsaasPixPayment(value:{customer:string;orderId:numbe
 }
 
 export async function getAsaasPixQrCode(paymentId:string){return asaasRequest<AsaasPixQrCode>(`/payments/${encodeURIComponent(paymentId)}/pixQrCode`);}
+export async function getAsaasPayment(paymentId:string){return asaasRequest<AsaasPayment>(`/payments/${encodeURIComponent(paymentId)}`);}
