@@ -13,6 +13,12 @@ db.exec(fs.readFileSync(path.join(root, "data", "schema.sql"), "utf8"));
 const categoryColumns=db.prepare("PRAGMA table_info(categories)").all();
 if(!categoryColumns.some(column=>column.name==="variation_type"))db.exec("ALTER TABLE categories ADD COLUMN variation_type TEXT NOT NULL DEFAULT 'none' CHECK(variation_type IN ('none','size','option'))");
 if(!categoryColumns.some(column=>column.name==="variation_label"))db.exec("ALTER TABLE categories ADD COLUMN variation_label TEXT");
+const productColumns=db.prepare("PRAGMA table_info(products)").all();
+if(!productColumns.some(column=>column.name==="is_new"))db.exec("ALTER TABLE products ADD COLUMN is_new INTEGER NOT NULL DEFAULT 0 CHECK(is_new IN (0,1))");
+if(!productColumns.some(column=>column.name==="launch_starts_at"))db.exec("ALTER TABLE products ADD COLUMN launch_starts_at TEXT");
+if(!productColumns.some(column=>column.name==="launch_ends_at"))db.exec("ALTER TABLE products ADD COLUMN launch_ends_at TEXT");
+if(!productColumns.some(column=>column.name==="offer_starts_at"))db.exec("ALTER TABLE products ADD COLUMN offer_starts_at TEXT");
+if(!productColumns.some(column=>column.name==="offer_ends_at"))db.exec("ALTER TABLE products ADD COLUMN offer_ends_at TEXT");
 
 const image = (id, w = 1200) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=82`;
 const photos = [
@@ -61,13 +67,20 @@ function slug(value) { return value.toLowerCase().normalize("NFD").replace(/[\u0
 
 db.exec("BEGIN IMMEDIATE");
 try {
-  for (const table of ["reviews","order_events","order_items","orders","search_history","favorite_items","cart_items","carts","addresses","refresh_tokens","customers","admin_refresh_tokens","admin_users","coupons","product_variants","product_images","products","categories","brands"]) db.exec(`DELETE FROM ${table}`);
+  for (const table of ["reviews","order_events","order_items","orders","search_history","favorite_items","cart_items","carts","addresses","refresh_tokens","customers","admin_refresh_tokens","admin_users","coupons","product_variants","product_images","products","hero_slides","categories","brands"]) db.exec(`DELETE FROM ${table}`);
   db.exec("DELETE FROM sqlite_sequence");
 
   const brandInsert = db.prepare("INSERT INTO brands(name,slug,country,description) VALUES(?,?,?,?)");
   const brandIds = brands.map(([name, brandSlug, country]) => id(brandInsert.run(name, brandSlug, country, `${name}: tecnologia e proteção selecionadas pela Ridekit.`)));
   const categoryInsert = db.prepare("INSERT INTO categories(name,slug,description,image_url) VALUES(?,?,?,?)");
   const categoryIds = categories.map(([name, categorySlug], i) => id(categoryInsert.run(name, categorySlug, `Seleção de ${name.toLowerCase()} para diferentes estilos de pilotagem.`, image(photos[i % photos.length][0]))));
+
+  const heroInsert = db.prepare("INSERT INTO hero_slides(badge,title,description,image_url,mobile_image_url,cta_label,cta_url,secondary_label,secondary_url,sort_order,active) VALUES(?,?,?,?,?,?,?,?,?,?,1)");
+  [
+    ["Seleção Ridekit","Proteção para cada rota.","Capacetes, equipamentos e acessórios com procedência, garantia e suporte especializado.",image(photos[1][0],1600),image(photos[1][0],900),"Ver capacetes","/capacetes","Ofertas da semana","/ofertas",0],
+    ["Frete e condições","Seu próximo equipamento começa aqui.","Frete grátis acima de R$ 299, parcelamento em até 10x e 5% de desconto no Pix.",image(photos[2][0],1600),image(photos[2][0],900),"Explorar a loja","/capacetes","Guia de tamanho","/guia-de-tamanho",1],
+    ["Novidades","Pilotagem com mais confiança.","Encontre o tamanho certo, acompanhe seu pedido e conte com atendimento humano quando precisar.",image(photos[0][0],1600),image(photos[0][0],900),"Conhecer produtos","/capacetes",null,null,2],
+  ].forEach(slide => heroInsert.run(...slide));
 
   db.exec("UPDATE categories SET variation_type='size',variation_label='Tamanho' WHERE slug IN ('fechados','articulados','abertos','off-road')");
   const productInsert = db.prepare(`INSERT INTO products(brand_id,category_id,name,slug,sku,description,price_cents,compare_at_cents,cost_cents,color,finish,shell_material,weight_grams,solar_visor,pinlock_ready,featured,rating,review_count) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
@@ -85,6 +98,7 @@ try {
     const sizes = accessory ? ["Único"] : ["56 / S", "58 / M", "60 / L", "62 / XL"];
     for (let s = 0; s < sizes.length; s++) variantInsert.run(productId, `RK-${String(i + 1).padStart(4,"0")}-${s + 1}`, sizes[s], colors[i % colors.length], (i * 7 + s * 3) % 22, s % 2, price);
   }
+  db.prepare(`UPDATE products SET is_new=1,launch_starts_at=datetime('now','-1 day'),launch_ends_at=datetime('now','+45 days') WHERE id IN (${productIds.slice(-8).map(()=>"?").join(",")})`).run(...productIds.slice(-8));
 
   const customerInsert = db.prepare("INSERT INTO customers(name,email,cpf,phone,password_hash) VALUES(?,?,?,?,?)");
   const addressInsert = db.prepare("INSERT INTO addresses(customer_id,label,zip_code,street,number,complement,district,city,state,is_default) VALUES(?,?,?,?,?,?,?,?,?,?)");

@@ -15,9 +15,21 @@ export function getDb() {
     if (!categoryColumns.some(column => column.name === "variation_type")) db.exec("ALTER TABLE categories ADD COLUMN variation_type TEXT NOT NULL DEFAULT 'none' CHECK(variation_type IN ('none','size','option'))");
     if (!categoryColumns.some(column => column.name === "variation_label")) db.exec("ALTER TABLE categories ADD COLUMN variation_label TEXT");
     db.exec("UPDATE categories SET variation_type='size',variation_label='Tamanho' WHERE slug IN ('fechados','articulados','abertos','off-road') AND variation_type='none'");
+    const productColumns = db.prepare("PRAGMA table_info(products)").all() as { name:string }[];
+    if (!productColumns.some(column => column.name === "is_new")) db.exec("ALTER TABLE products ADD COLUMN is_new INTEGER NOT NULL DEFAULT 0 CHECK(is_new IN (0,1))");
+    if (!productColumns.some(column => column.name === "launch_starts_at")) db.exec("ALTER TABLE products ADD COLUMN launch_starts_at TEXT");
+    if (!productColumns.some(column => column.name === "launch_ends_at")) db.exec("ALTER TABLE products ADD COLUMN launch_ends_at TEXT");
+    if (!productColumns.some(column => column.name === "offer_starts_at")) db.exec("ALTER TABLE products ADD COLUMN offer_starts_at TEXT");
+    if (!productColumns.some(column => column.name === "offer_ends_at")) db.exec("ALTER TABLE products ADD COLUMN offer_ends_at TEXT");
     const orderColumns = db.prepare("PRAGMA table_info(orders)").all() as { name:string }[];
     if (!orderColumns.some(column => column.name === "shipping_rule_id")) db.exec("ALTER TABLE orders ADD COLUMN shipping_rule_id INTEGER");
     if (!orderColumns.some(column => column.name === "shipping_rule_name")) db.exec("ALTER TABLE orders ADD COLUMN shipping_rule_name TEXT");
+    if (!orderColumns.some(column => column.name === "payment_provider")) db.exec("ALTER TABLE orders ADD COLUMN payment_provider TEXT");
+    if (!orderColumns.some(column => column.name === "provider_payment_id")) db.exec("ALTER TABLE orders ADD COLUMN provider_payment_id TEXT");
+    if (!orderColumns.some(column => column.name === "pix_qr_code")) db.exec("ALTER TABLE orders ADD COLUMN pix_qr_code TEXT");
+    if (!orderColumns.some(column => column.name === "pix_qr_image")) db.exec("ALTER TABLE orders ADD COLUMN pix_qr_image TEXT");
+    if (!orderColumns.some(column => column.name === "pix_expires_at")) db.exec("ALTER TABLE orders ADD COLUMN pix_expires_at TEXT");
+    if (!orderColumns.some(column => column.name === "payment_updated_at")) db.exec("ALTER TABLE orders ADD COLUMN payment_updated_at TEXT");
     const whatsappColumns = db.prepare("PRAGMA table_info(whatsapp_requests)").all() as { name:string }[];
     if (!whatsappColumns.some(column => column.name === "customer_zip_code")) db.exec("ALTER TABLE whatsapp_requests ADD COLUMN customer_zip_code TEXT");
     if (!whatsappColumns.some(column => column.name === "shipping_rule_id")) db.exec("ALTER TABLE whatsapp_requests ADD COLUMN shipping_rule_id INTEGER");
@@ -27,6 +39,9 @@ export function getDb() {
       db.exec("ALTER TABLE customers ADD COLUMN email_verified_at TEXT");
       db.exec("UPDATE customers SET email_verified_at=CURRENT_TIMESTAMP WHERE email_verified_at IS NULL");
     }
+    if (!customerColumns.some(column => column.name === "asaas_customer_id")) db.exec("ALTER TABLE customers ADD COLUMN asaas_customer_id TEXT");
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_provider_payment_id ON orders(provider_payment_id) WHERE provider_payment_id IS NOT NULL");
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_asaas_customer_id ON customers(asaas_customer_id) WHERE asaas_customer_id IS NOT NULL");
     globalDb.ridekitDb = db;
   }
   return globalDb.ridekitDb;

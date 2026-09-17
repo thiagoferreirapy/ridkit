@@ -48,6 +48,11 @@ CREATE TABLE IF NOT EXISTS products (
   solar_visor INTEGER NOT NULL DEFAULT 0 CHECK(solar_visor IN (0,1)),
   pinlock_ready INTEGER NOT NULL DEFAULT 0 CHECK(pinlock_ready IN (0,1)),
   featured INTEGER NOT NULL DEFAULT 0 CHECK(featured IN (0,1)),
+  is_new INTEGER NOT NULL DEFAULT 0 CHECK(is_new IN (0,1)),
+  launch_starts_at TEXT,
+  launch_ends_at TEXT,
+  offer_starts_at TEXT,
+  offer_ends_at TEXT,
   active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
   rating REAL NOT NULL DEFAULT 0,
   review_count INTEGER NOT NULL DEFAULT 0,
@@ -84,6 +89,7 @@ CREATE TABLE IF NOT EXISTS customers (
   email TEXT NOT NULL UNIQUE,
   cpf TEXT UNIQUE,
   phone TEXT,
+  asaas_customer_id TEXT UNIQUE,
   password_hash TEXT,
   email_verified_at TEXT DEFAULT CURRENT_TIMESTAMP,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -201,8 +207,23 @@ CREATE TABLE IF NOT EXISTS orders (
   shipping_method TEXT NOT NULL,
   shipping_address_json TEXT NOT NULL,
   tracking_code TEXT,
+  payment_provider TEXT,
+  provider_payment_id TEXT UNIQUE,
+  pix_qr_code TEXT,
+  pix_qr_image TEXT,
+  pix_expires_at TEXT,
+  payment_updated_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS payment_webhook_events (
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  event TEXT NOT NULL,
+  provider_payment_id TEXT,
+  payload_json TEXT NOT NULL,
+  processed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS order_items (

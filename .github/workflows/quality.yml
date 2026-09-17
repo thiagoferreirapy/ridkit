@@ -1,0 +1,30 @@
+name: Quality
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm build
+      - name: Start application
+        run: pnpm start > /tmp/ridekit.log 2>&1 &
+        env:
+          JWT_SECRET: ci-customer-secret-with-at-least-32-bytes
+          ADMIN_JWT_SECRET: ci-admin-secret-with-at-least-32-bytes
+      - name: Wait for application
+        run: for attempt in {1..30}; do curl --fail --silent http://localhost:3000/api/health && exit 0; sleep 1; done; cat /tmp/ridekit.log; exit 1
+      - run: pnpm test

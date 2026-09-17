@@ -9,6 +9,8 @@ export const productSchema = z.object({
   color: z.string().trim().min(2), finish: z.string().trim().optional().nullable(), shell_material: z.string().trim().optional().nullable(),
   weight_grams: z.coerce.number().int().positive().optional().nullable(), solar_visor: z.coerce.number().int().min(0).max(1).default(0),
   pinlock_ready: z.coerce.number().int().min(0).max(1).default(0), featured: z.coerce.number().int().min(0).max(1).default(0),
+  is_new: z.coerce.number().int().min(0).max(1).default(0), launch_starts_at: z.string().optional().nullable(), launch_ends_at: z.string().optional().nullable(),
+  offer_starts_at: z.string().optional().nullable(), offer_ends_at: z.string().optional().nullable(),
   active: z.coerce.number().int().min(0).max(1).default(1),
   images: z.array(z.object({ url: imageLocation, alt: z.string().min(2), photographer: z.string().optional(), photographer_url: z.string().url().optional() })).default([]),
   variants: z.array(z.object({ sku: z.string().min(3), size: z.string().min(1), color: z.string().min(2), stock: z.coerce.number().int().nonnegative(), price_cents: z.coerce.number().int().nonnegative().nullable().optional() })).min(1),
@@ -21,7 +23,7 @@ export const adminProductPatchSchema = productPatchSchema.extend({
 
 export const orderSchema = z.object({
   coupon_code: z.string().trim().optional(),
-  payment_method: z.enum(["pix","credit_card","two_cards"]), shipping_method: z.enum(["Econômica","Expressa","Retirada"]),
+  payment_method: z.literal("pix"), shipping_method: z.enum(["Econômica","Expressa","Retirada"]),
   shipping_address: z.object({ zip_code:z.string().min(8), street:z.string().min(2), number:z.string().min(1), complement:z.string().optional(), district:z.string().min(2), city:z.string().min(2), state:z.string().length(2) }),
   items: z.array(z.object({ variant_id:z.coerce.number().int().positive(), quantity:z.coerce.number().int().min(1).max(10) })).min(1),
 });
