@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { apiError, ok } from "@/lib/api";
-import { requireAdmin } from "@/lib/admin-auth";
+import { requireAdminPermission } from "@/lib/admin-auth";
 import { getAsaasPayment } from "@/lib/asaas";
 import { audit } from "@/lib/audit";
 import { getDb } from "@/lib/db";
@@ -11,7 +11,7 @@ const failed=new Set(["OVERDUE","REFUNDED","REFUND_REQUESTED","CHARGEBACK_REQUES
 
 export async function POST(request:Request){
   try{
-    const admin=await requireAdmin(["admin","manager"]);
+    const admin=await requireAdminPermission("orders.manage");
     const {order_id}=z.object({order_id:z.coerce.number().int().positive()}).parse(await request.json());
     const db=getDb(),order=db.prepare("SELECT id,status,payment_status,provider_payment_id FROM orders WHERE id=?").get(order_id) as {id:number;status:string;payment_status:string;provider_payment_id:string|null}|undefined;
     if(!order)throw new Error("NOT_FOUND");

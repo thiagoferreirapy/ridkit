@@ -1,7 +1,7 @@
 import { getDb } from "@/lib/db";
 import { apiError, created, ok, pagination } from "@/lib/api";
 import { orderSchema } from "@/lib/schemas";
-import { requireAdmin } from "@/lib/admin-auth";
+import { requireAdminPermission } from "@/lib/admin-auth";
 import { requireUser } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import { getStoreSettings } from "@/lib/store-settings";
@@ -10,7 +10,7 @@ import { calculateShipping, type ShippingMethod } from "@/lib/shipping";
 export const runtime = "nodejs";
 
 export async function GET(request:Request) {
-  await requireAdmin();
+  await requireAdminPermission("orders.view");
   try { const url=new URL(request.url); const {page,limit,offset}=pagination(url.searchParams); const where=["1=1"]; const params:(string|number)[]=[]; const customer=url.searchParams.get("customer_id"); const status=url.searchParams.get("status");
     if(customer){where.push("o.customer_id=?");params.push(Number(customer));} if(status){where.push("o.status=?");params.push(status);} const db=getDb(); const whereSql=where.join(" AND "); const total=Number((db.prepare(`SELECT COUNT(*) AS count FROM orders o WHERE ${whereSql}`).get(...params) as {count:number}).count);
     const items=db.prepare(`SELECT o.id,o.order_number,o.status,o.payment_method,o.payment_status,o.subtotal_cents,o.discount_cents,o.shipping_cents,o.shipping_rule_name,o.total_cents,o.shipping_method,o.tracking_code,o.created_at,c.name AS customer,c.email FROM orders o JOIN customers c ON c.id=o.customer_id WHERE ${whereSql} ORDER BY o.created_at DESC LIMIT ? OFFSET ?`).all(...params,limit,offset);

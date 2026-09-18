@@ -16,6 +16,7 @@ import {
 import { useAdmin } from "@/components/admin-state";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { FormSkeleton, TableSkeleton } from "@/components/skeletons";
+import { adminPermissionDefinitions,rolePermissionDefaults,type AdminPermission,type AdminRole } from "@/lib/admin-permissions";
 
 const money = (value: number) =>
   (value / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -355,6 +356,7 @@ export const configs: Record<
     ],
   },
 };
+configs["Tabela de medidas"]={resource:"category_size_chart",title:"Tabela de medidas",description:"Configure faixas de medidas por categoria.",columns:[["category_id","Categoria",v=>`#${v}`],["label","Tamanho",v=>v],["min_value","Mínimo",(v,i)=>`${v??"—"} ${i.unit}`],["max_value","Máximo",(v,i)=>`${v??"—"} ${i.unit}`],["position","Ordem",v=>String(v)]],fields:[{name:"category_id",label:"ID da categoria",type:"number",required:true},{name:"label",label:"Tamanho (ex.: M / 58)",required:true},{name:"min_value",label:"Medida mínima",type:"number"},{name:"max_value",label:"Medida máxima",type:"number"},{name:"unit",label:"Unidade"},{name:"position",label:"Ordem",type:"number"}]};
 configs.Categorias.columns.splice(3, 0, [
   "variation_type",
   "Variação",
@@ -1119,12 +1121,7 @@ export function AdminSettings() {
       setMessage(reason instanceof Error ? reason.message : "Erro ao alterar");
     }
   };
-  const permissions = [
-    [/Produtos|Categorias|Marcas|Banners/, "Gerenciar catálogo"],
-    [/Pedidos|Estoque/, "Operar pedidos e estoque"],
-    [/Clientes|Mensagens|Avaliações/, "Atendimento"],
-    [/Configurações/, "Administradores e permissões"],
-  ];
+  const roleLabels:Record<AdminRole,string>={admin:"Administrador",manager:"Gerente",support:"Suporte"};
   return (
     <section className="mt-7 grid max-w-5xl gap-6">
       <div className="card p-6">
@@ -1157,20 +1154,10 @@ export function AdminSettings() {
               </tr>
             </thead>
             <tbody>
-              {permissions.map(([area, label]) => (
-                <tr className="border-t border-line" key={String(label)}>
-                  <td className="p-4 font-semibold">{String(label)}</td>
-                  <td>Completo</td>
-                  <td>
-                    {String(area).includes("Config")
-                      ? "Sem acesso"
-                      : "Operacional"}
-                  </td>
-                  <td>
-                    {String(area).includes("Clientes")
-                      ? "Consulta"
-                      : "Sem alteração"}
-                  </td>
+              {adminPermissionDefinitions.map(([key,,label]) => (
+                <tr className="border-t border-line" key={key}>
+                  <td className="p-4 font-semibold">{label}</td>
+                  {(["admin","manager","support"] as AdminRole[]).map(role=><td key={role}>{rolePermissionDefaults[role].includes(key)?<span className="font-semibold text-success">Permitido</span>:<span className="text-muted">Bloqueado</span>}</td>)}
                 </tr>
               ))}
             </tbody>
@@ -1218,38 +1205,19 @@ export function AdminSettings() {
               Cadastrar
             </button>
           </form>
-          <div className="card overflow-x-auto">
-            <table className="w-full min-w-[700px] text-left text-xs">
-              <thead className="bg-canvas">
-                <tr>
-                  <th className="p-4">Administrador</th>
-                  <th>Função</th>
-                  <th>Status</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr className="border-t border-line" key={user.id}>
-                    <td className="p-4">
-                      <b>{user.name}</b>
-                      <small className="block text-muted">{user.email}</small>
-                    </td>
-                    <td>
+          <div className="grid gap-4">
+            {users.map((user) => (
+              <article className="card overflow-hidden" key={user.id}>
+                <div className="flex flex-col gap-4 border-b border-line p-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div><b>{user.name}</b><small className="mt-1 block text-muted">{user.email} · {user.active?"Ativo":"Inativo"}</small></div>
+                  <div className="flex flex-wrap gap-2">
                       <select
                         value={user.role}
-                        onChange={(event) =>
-                          update(user.id, { role: event.target.value })
-                        }
+                        onChange={(event) => {const role=event.target.value as AdminRole;update(user.id,{role,permissions:rolePermissionDefaults[role]});}}
                         className="rounded-lg border border-line p-2"
                       >
-                        <option value="support">Suporte</option>
-                        <option value="manager">Gerente</option>
-                        <option value="admin">Administrador</option>
+                        {Object.entries(roleLabels).map(([value,label])=><option value={value} key={value}>{label}</option>)}
                       </select>
-                    </td>
-                    <td>{user.active ? "Ativo" : "Inativo"}</td>
-                    <td>
                       <button
                         onClick={() =>
                           update(user.id, { active: user.active ? 0 : 1 })
@@ -1258,11 +1226,13 @@ export function AdminSettings() {
                       >
                         {user.active ? "Desativar" : "Ativar"}
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  </div>
+                </div>
+                <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {adminPermissionDefinitions.map(([key,area,label])=>{const checked=user.role==="admin"||user.permissions?.includes(key);return <label className={`flex gap-3 rounded-xl border p-3 text-xs ${checked?"border-emerald-200 bg-emerald-50/60":"border-line"}`} key={key}><input type="checkbox" className="mt-0.5 size-4 accent-accent" checked={checked} disabled={user.role==="admin"} onChange={()=>{const current=(user.permissions||[]) as AdminPermission[],permissions=checked?current.filter(value=>value!==key):[...current,key];update(user.id,{permissions});}}/><span><b className="block">{area}</b><span className="mt-1 block leading-5 text-muted">{label}</span></span></label>})}
+                </div>
+              </article>
+            ))}
           </div>
         </>
       )}

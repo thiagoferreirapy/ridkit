@@ -1,4 +1,5 @@
 import { ZodError } from "zod";
+import { logger } from "@/lib/logger";
 
 export function ok(data: unknown, init?: ResponseInit) {
   return Response.json({ data }, { status: 200, ...init });
@@ -9,6 +10,7 @@ export function created(data: unknown) {
 }
 
 export function apiError(error: unknown) {
+  logger.error("api.request.failed",error);
   if (error instanceof ZodError) return Response.json({ error: "Dados inválidos", details: error.flatten() }, { status: 422 });
   const message = error instanceof Error ? error.message : "Erro inesperado";
   if (message === "NOT_FOUND") return Response.json({ error: "Recurso não encontrado" }, { status: 404 });

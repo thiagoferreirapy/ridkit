@@ -1,0 +1,17 @@
+{
+  "ci": {
+    "collect": {
+      "startServerCommand": "pnpm dev",
+      "startServerReadyPattern": "Ready|Local",
+      "url": ["http://127.0.0.1:3000/", "http://127.0.0.1:3000/capacetes"],
+      "numberOfRuns": 1
+    },
+    "assert": {
+      "assertions": {
+        "categories:accessibility": ["error", {"minScore": 0.9}],
+        "categories:best-practices": ["warn", {"minScore": 0.85}],
+        "categories:seo": ["warn", {"minScore": 0.9}]
+      }
+    }
+  }
+}

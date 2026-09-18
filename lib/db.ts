@@ -51,6 +51,14 @@ export function getDb() {
     const variantColumns = db.prepare("PRAGMA table_info(product_variants)").all() as { name:string }[];
     if (!variantColumns.some(column => column.name === "min_stock")) db.exec("ALTER TABLE product_variants ADD COLUMN min_stock INTEGER NOT NULL DEFAULT 0");
     db.exec("CREATE TABLE IF NOT EXISTS inventory_movements (id INTEGER PRIMARY KEY AUTOINCREMENT,variant_id INTEGER NOT NULL REFERENCES product_variants(id),order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,admin_id INTEGER REFERENCES admin_users(id) ON DELETE SET NULL,movement_type TEXT NOT NULL CHECK(movement_type IN ('entry','sale','reservation','release','adjustment','return')),quantity INTEGER NOT NULL,stock_after INTEGER,reserved_after INTEGER,reason TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP) STRICT");
+    db.exec("CREATE TABLE IF NOT EXISTS product_attributes (id INTEGER PRIMARY KEY AUTOINCREMENT,product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,name TEXT NOT NULL,value TEXT NOT NULL,position INTEGER NOT NULL DEFAULT 0) STRICT");
+    db.exec("CREATE TABLE IF NOT EXISTS category_size_chart (id INTEGER PRIMARY KEY AUTOINCREMENT,category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,label TEXT NOT NULL,min_value REAL,max_value REAL,unit TEXT NOT NULL DEFAULT 'cm',position INTEGER NOT NULL DEFAULT 0) STRICT");
+    db.exec("CREATE TABLE IF NOT EXISTS review_images (id INTEGER PRIMARY KEY AUTOINCREMENT,review_id INTEGER NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,url TEXT NOT NULL,position INTEGER NOT NULL DEFAULT 0) STRICT");
+    const adminColumns=db.prepare("PRAGMA table_info(admin_users)").all() as {name:string}[];
+    if(!adminColumns.some(column=>column.name==="two_factor_secret"))db.exec("ALTER TABLE admin_users ADD COLUMN two_factor_secret TEXT");
+    if(!adminColumns.some(column=>column.name==="two_factor_enabled"))db.exec("ALTER TABLE admin_users ADD COLUMN two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK(two_factor_enabled IN (0,1))");
+    if(!adminColumns.some(column=>column.name==="recovery_codes_json"))db.exec("ALTER TABLE admin_users ADD COLUMN recovery_codes_json TEXT");
+    if(!adminColumns.some(column=>column.name==="permissions_json"))db.exec("ALTER TABLE admin_users ADD COLUMN permissions_json TEXT");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_idempotency ON orders(customer_id,idempotency_key) WHERE idempotency_key IS NOT NULL");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_provider_payment_id ON orders(provider_payment_id) WHERE provider_payment_id IS NOT NULL");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_asaas_customer_id ON customers(asaas_customer_id) WHERE asaas_customer_id IS NOT NULL");

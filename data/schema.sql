@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS categories (
   variation_type TEXT NOT NULL DEFAULT 'none' CHECK(variation_type IN ('none','size','option')),
   variation_label TEXT,
   active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+  two_factor_secret TEXT,
+  two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK(two_factor_enabled IN (0,1)),
+  recovery_codes_json TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0,
   seo_title TEXT,
   seo_description TEXT,
@@ -226,6 +229,24 @@ CREATE TABLE IF NOT EXISTS orders (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) STRICT;
 
+CREATE TABLE IF NOT EXISTS product_attributes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  value TEXT NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS category_size_chart (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  min_value REAL,
+  max_value REAL,
+  unit TEXT NOT NULL DEFAULT 'cm',
+  position INTEGER NOT NULL DEFAULT 0
+) STRICT;
+
 CREATE TABLE IF NOT EXISTS payment_webhook_events (
   id TEXT PRIMARY KEY,
   provider TEXT NOT NULL,
@@ -282,6 +303,13 @@ CREATE TABLE IF NOT EXISTS reviews (
   approved INTEGER NOT NULL DEFAULT 1 CHECK(approved IN (0,1)),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(product_id, customer_id)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS review_images (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  review_id INTEGER NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS password_reset_tokens (

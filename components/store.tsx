@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight, Check, ChevronDown, Heart, Menu, Minus, Package, Search,
-  ShieldCheck, ShoppingBag, SlidersHorizontal, Star, Truck, User, X, Plus, Scale,
+  MessageCircle, ShieldCheck, ShoppingBag, SlidersHorizontal, Star, Truck, User, X, Plus,
 } from "lucide-react";
 import type { Product } from "@/lib/catalog";
 import { useShop, type CartItem } from "@/components/shop-state";
@@ -97,10 +97,8 @@ export function ProductVisual({tone="from-zinc-950 to-zinc-700", className="", i
   </div>;
 }
 
-function useCompare(product:Product){const [selected,setSelected]=useState(false);useEffect(()=>{try{const items=JSON.parse(localStorage.getItem("ridekit-compare")||"[]") as Product[];setSelected(items.some(item=>item.slug===product.slug));}catch{setSelected(false);}},[product.slug]);const toggle=()=>{let items:Product[]=[];try{items=JSON.parse(localStorage.getItem("ridekit-compare")||"[]");}catch{}if(items.some(item=>item.slug===product.slug))items=items.filter(item=>item.slug!==product.slug);else items=[...items.slice(-2),product];localStorage.setItem("ridekit-compare",JSON.stringify(items));setSelected(items.some(item=>item.slug===product.slug));window.dispatchEvent(new Event("ridekit-compare-change"));};return {selected,toggle};}
-
 export function ProductCard({product, compact=false}:{product:Product;compact?:boolean}) {
-  const {toggleFavorite,isFavorite,busy,settings}=useShop(); const favorite=isFavorite(product.id);const compare=useCompare(product);
+  const {toggleFavorite,isFavorite,busy,settings}=useShop(); const favorite=isFavorite(product.id);
   const outOfStock=product.availableStock===0;
   return <article className="group rounded-[18px] border border-line bg-white p-3 transition hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(11,13,16,.10)] md:p-4">
       <div className="relative"><Link href={`/produto/${product.slug}`} className="block"><ProductVisual tone={product.tone} image={product.image} className={`${compact?"aspect-square":"aspect-[1.15]"} ${outOfStock?"opacity-60 grayscale":""}`}/></Link>{outOfStock?<span className="absolute left-3 top-3 rounded-full bg-dark px-2.5 py-1 text-[9px] font-bold tracking-wide text-white">SEM ESTOQUE</span>:product.tag&&<span className="absolute left-3 top-3 rounded-full bg-white px-2.5 py-1 text-[9px] font-bold tracking-wide">{product.tag}</span>}<button disabled={!product.id||busy} onClick={()=>product.id&&toggleFavorite(product.id)} aria-label={favorite?`Remover ${product.name} dos favoritos`:`Adicionar ${product.name} aos favoritos`} aria-pressed={favorite} className={`focus-ring absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-white/90 transition ${favorite?"text-accent":"text-muted hover:text-accent"}`}><Heart size={17} className={favorite?"fill-current":""}/></button></div>
@@ -110,7 +108,7 @@ export function ProductCard({product, compact=false}:{product:Product;compact?:b
       <div className="mt-2 flex items-baseline gap-2">{product.oldPrice&&<s className="text-xs text-muted">{product.oldPrice}</s>}<b className="text-base md:text-lg">{product.price}</b></div>
       <p className="mt-1 text-[10px] text-muted md:text-xs">{settings.max_installments}x sem juros · {settings.pix_discount_percent}% no Pix</p>
       {product.sizes&&product.sizes.length>0&&<div className="mt-3 flex flex-wrap gap-1.5" aria-label="Tamanhos disponíveis">{product.sizes.map(size=><span key={size} className="grid h-8 min-w-8 place-items-center rounded-lg border border-line px-2 text-[11px]">{size.replace(" / ","/")}</span>)}</div>}
-    </Link><button type="button" onClick={compare.toggle} aria-pressed={compare.selected} className={`focus-ring mt-3 flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border text-xs font-semibold ${compare.selected?"border-accent bg-accent-soft text-accent":"border-line text-muted hover:border-ink hover:text-ink"}`}><Scale size={15}/>{compare.selected?"Adicionado ao comparador":"Comparar"}</button>
+    </Link>{outOfStock?<div aria-disabled="true" className="mt-3 flex min-h-11 w-full items-center justify-center rounded-xl bg-[#e8eaed] px-4 text-sm font-semibold text-muted">Produto indisponível</div>:<Link href={`/produto/${product.slug}`} aria-label={`${settings.purchase_mode==="whatsapp"?"Comprar":"Adicionar"} ${product.name}`} className={`focus-ring mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition ${settings.purchase_mode==="whatsapp"?"bg-[#25D366] hover:bg-[#1fb958]":"bg-accent hover:bg-[#e94600]"}`}>{settings.purchase_mode==="whatsapp"?<><MessageCircle size={18}/>Comprar pelo WhatsApp</>:<><ShoppingBag size={18}/>Adicionar ao carrinho</>}</Link>}
   </article>;
 }
 

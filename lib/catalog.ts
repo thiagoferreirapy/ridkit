@@ -31,8 +31,8 @@ export const products: Product[] = [
 ];
 
 export const adminSections = [
-    "Dashboard", "Produtos", "Categorias", "Marcas", "Estoque", "Pedidos", "Frete regional", "Vendas WhatsApp",
-    "Clientes", "Cupons", "Avaliações", "Banners", "Mensagens", "Campanhas", "E-mails", "Newsletter", "Configurações",
+    "Dashboard", "Produtos", "Categorias", "Tabela de medidas", "Marcas", "Estoque", "Pedidos", "Frete regional", "Vendas WhatsApp",
+    "Clientes", "Cupons", "Avaliações", "Banners", "Mensagens", "Campanhas", "E-mails", "Newsletter", "Segurança", "Configurações", "Equipe",
 ];
 
 export const routeMap = [

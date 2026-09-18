@@ -9,3 +9,8 @@ data/*.sqlite-shm
 data/*.sqlite-wal
 data/*.sqlite
 backups/
+playwright-report/
+test-results/
+lighthouse-*.html
+.lighthouse-tmp/
+.pnpm-store/

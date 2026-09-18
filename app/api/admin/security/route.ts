@@ -1,0 +1,13 @@
+import QRCode from "qrcode";
+import { z } from "zod";
+import { apiError,ok } from "@/lib/api";
+import { requireAdmin } from "@/lib/admin-auth";
+import { audit } from "@/lib/audit";
+import { getDb } from "@/lib/db";
+import { createRecoveryCodes,createTotpSecret,hashRecoveryCode,otpAuthUrl,verifyTotp } from "@/lib/two-factor";
+
+export const runtime="nodejs";
+export async function GET(){try{const admin=await requireAdmin(),row=getDb().prepare("SELECT two_factor_enabled FROM admin_users WHERE id=?").get(admin.id) as {two_factor_enabled:number};return ok({enabled:Boolean(row.two_factor_enabled)})}catch(error){return apiError(error)}}
+export async function POST(){try{const admin=await requireAdmin(),db=getDb(),secret=createTotpSecret(),uri=otpAuthUrl(secret,admin.email),qr_code=await QRCode.toDataURL(uri,{width:280,margin:2});db.prepare("UPDATE admin_users SET two_factor_secret=?,two_factor_enabled=0,recovery_codes_json=NULL WHERE id=?").run(secret,admin.id);audit(admin.id,"two_factor_setup_started","admin_users",admin.id);return ok({secret,uri,qr_code})}catch(error){return apiError(error)}}
+export async function PUT(request:Request){try{const admin=await requireAdmin(),{code}=z.object({code:z.string().min(6).max(8)}).parse(await request.json()),db=getDb(),row=db.prepare("SELECT two_factor_secret FROM admin_users WHERE id=?").get(admin.id) as {two_factor_secret:string|null};if(!row.two_factor_secret||!verifyTotp(row.two_factor_secret,code))throw new Error("BAD_REQUEST:Código inválido. Confira o horário do celular e tente novamente.");const recovery_codes=createRecoveryCodes();db.prepare("UPDATE admin_users SET two_factor_enabled=1,recovery_codes_json=? WHERE id=?").run(JSON.stringify(recovery_codes.map(hashRecoveryCode)),admin.id);audit(admin.id,"two_factor_enabled","admin_users",admin.id);return ok({enabled:true,recovery_codes})}catch(error){return apiError(error)}}
+export async function DELETE(request:Request){try{const admin=await requireAdmin(),{code}=z.object({code:z.string().min(6).max(20)}).parse(await request.json()),db=getDb(),row=db.prepare("SELECT two_factor_secret,recovery_codes_json FROM admin_users WHERE id=?").get(admin.id) as {two_factor_secret:string|null;recovery_codes_json:string|null};const recovery=row.recovery_codes_json?JSON.parse(row.recovery_codes_json) as string[]:[];if(!row.two_factor_secret||(!verifyTotp(row.two_factor_secret,code)&&!recovery.includes(hashRecoveryCode(code))))throw new Error("BAD_REQUEST:Código inválido");db.prepare("UPDATE admin_users SET two_factor_secret=NULL,two_factor_enabled=0,recovery_codes_json=NULL WHERE id=?").run(admin.id);audit(admin.id,"two_factor_disabled","admin_users",admin.id);return ok({enabled:false})}catch(error){return apiError(error)}}

@@ -106,6 +106,7 @@ export function AdminProductFormV2({ id }: { id?: string }) {
     const values = Object.fromEntries(new FormData(event.currentTarget));
     const baseSku = String(values.sku);
     const color = String(values.color);
+    const attributes=String(values.attributes||"").split("\n").map(line=>line.split(":" )).filter(parts=>parts.length>1&&parts[0].trim()&&parts.slice(1).join(":").trim()).map(parts=>({name:parts[0].trim(),value:parts.slice(1).join(":").trim()}));
     let finalVariants = variants.length
       ? variants
       : [{ ...blankVariant(), value: "Único" }];
@@ -143,6 +144,7 @@ export function AdminProductFormV2({ id }: { id?: string }) {
       seo_title: values.seo_title || null,
       seo_description: values.seo_description || null,
       seo_image_url: values.seo_image_url || null,
+      attributes,
       images: values.image_url
         ? [{ url: String(values.image_url), alt: String(values.name) }]
         : [],
@@ -307,6 +309,11 @@ export function AdminProductFormV2({ id }: { id?: string }) {
           value={product.seo_image_url}
           wide
         />
+        <label className="text-xs font-semibold md:col-span-2">
+          Especificações técnicas
+          <textarea name="attributes" defaultValue={(product.attributes||[]).map((item:Item)=>`${item.name}: ${item.value}`).join("\n")} placeholder={"Material: Fibra de carbono\nCertificação: ECE 22.06\nFecho: Duplo D"} className="mt-2 h-32 w-full rounded-xl border border-line p-3 text-sm"/>
+          <span className="mt-1 block font-normal text-muted">Uma especificação por linha no formato Nome: valor.</span>
+        </label>
         <div className="md:col-span-2">
           <div className="flex items-start justify-between gap-4">
             <div>

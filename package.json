@@ -12,6 +12,9 @@
     "lint": "tsc --noEmit",
     "test": "node scripts/smoke.mjs",
     "test:unit": "node --test tests/*.test.ts",
+    "test:e2e": "playwright test",
+    "test:a11y": "playwright test -g acessibilidade",
+    "test:lighthouse": "node scripts/lighthouse.mjs",
     "db:seed": "node scripts/seed.mjs",
     "db:reset": "node scripts/seed.mjs",
     "backup": "node scripts/backup.mjs"
@@ -19,16 +22,21 @@
   "dependencies": {
     "lucide-react": "latest",
     "next": "latest",
+    "qrcode": "^1.5.4",
     "react": "latest",
     "react-dom": "latest",
     "recharts": "^3.10.1",
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "latest",
     "@types/node": "latest",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "lighthouse": "^13.4.1",
     "postcss": "latest",
     "tailwindcss": "latest",
     "typescript": "latest"

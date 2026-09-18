@@ -15,12 +15,14 @@ export const productSchema = z.object({
   seo_description:z.string().trim().max(170).optional().nullable(),seo_image_url:imageLocation.optional().nullable(),
   active: z.coerce.number().int().min(0).max(1).default(1),
   images: z.array(z.object({ url: imageLocation, alt: z.string().min(2), photographer: z.string().optional(), photographer_url: z.string().url().optional() })).default([]),
+  attributes: z.array(z.object({name:z.string().trim().min(1).max(80),value:z.string().trim().min(1).max(300)})).default([]),
   variants: z.array(z.object({ sku: z.string().min(3), size: z.string().min(1), color: z.string().min(2), stock: z.coerce.number().int().nonnegative(), price_cents: z.coerce.number().int().nonnegative().nullable().optional() })).min(1),
 });
-export const productPatchSchema = productSchema.omit({ images: true, variants: true }).partial();
+export const productPatchSchema = productSchema.omit({ images: true, variants: true, attributes:true }).partial();
 export const adminProductPatchSchema = productPatchSchema.extend({
   images: z.array(z.object({ id:z.coerce.number().int().positive().optional(),url:imageLocation,alt:z.string().min(2),photographer:z.string().optional().nullable(),photographer_url:z.string().url().optional().nullable() })).optional(),
   variants: z.array(z.object({ id:z.coerce.number().int().positive().optional(),sku:z.string().min(3),size:z.string().min(1),color:z.string().min(2),stock:z.coerce.number().int().nonnegative(),reserved_stock:z.coerce.number().int().nonnegative().default(0),price_cents:z.coerce.number().int().nonnegative().nullable().optional(),active:z.coerce.number().int().min(0).max(1).default(1) })).optional(),
+  attributes: z.array(z.object({name:z.string().trim().min(1).max(80),value:z.string().trim().min(1).max(300)})).optional(),
 });
 
 export const orderSchema = z.object({

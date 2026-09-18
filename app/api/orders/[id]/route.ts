@@ -2,7 +2,7 @@ import { getDb } from "@/lib/db";
 import { apiError, ok } from "@/lib/api";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
-import { requireAdmin } from "@/lib/admin-auth";
+import { requireAdminPermission } from "@/lib/admin-auth";
 import { sendEmail } from "@/lib/email";
 import { audit } from "@/lib/audit";
 
@@ -11,7 +11,7 @@ export const runtime="nodejs";
 export async function GET(_request:Request,{params}:{params:Promise<{id:string}>}) { try {const user=await requireUser();const {id}=await params; const db=getDb(); const order=db.prepare(`SELECT o.*,c.name AS customer,c.email,c.phone FROM orders o JOIN customers c ON c.id=o.customer_id WHERE ${/^\d+$/.test(id)?"o.id":"o.order_number"}=? AND o.customer_id=?`).get(/^\d+$/.test(id)?Number(id):id,user.id) as Record<string,unknown>|undefined; if(!order)throw new Error("NOT_FOUND"); const orderId=Number(order.id); return ok({...order,shipping_address:JSON.parse(String(order.shipping_address_json)),items:db.prepare("SELECT oi.*,pi.url AS image_url FROM order_items oi LEFT JOIN product_images pi ON pi.product_id=oi.product_id AND pi.position=0 WHERE oi.order_id=?").all(orderId),events:db.prepare("SELECT * FROM order_events WHERE order_id=? ORDER BY occurred_at").all(orderId)});}catch(error){return apiError(error);} }
 
 export async function PATCH(request:Request,{params}:{params:Promise<{id:string}>}) {
-  const admin=await requireAdmin();
+  const admin=await requireAdminPermission("orders.manage");
   const db=getDb();
   try {
     const {id}=await params; const orderId=Number(id);
