@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-state";
 import { CheckCircle2,Eye,EyeOff,MailCheck,RefreshCw,XCircle } from "lucide-react";
 
-const benefits=[["01","Pedidos no radar","Status e histórico em um só lugar."],["02","Favoritos salvos","Sua seleção pronta para comparar."],["03","Checkout mais rápido","Dados protegidos para ganhar tempo."]];
+const benefits=[["01","Pedidos no radar","Status e histórico em um só lugar."],["02","Favoritos salvos","Seus produtos preferidos sempre à mão."],["03","Checkout mais rápido","Dados protegidos para ganhar tempo."]];
 
 export function AuthScreen(){
   const {login,register,user,loading}=useAuth();const router=useRouter();const [mode,setMode]=useState<"login"|"register">("login");const [busy,setBusy]=useState(false),[error,setError]=useState(""),[phone,setPhone]=useState(""),[cpf,setCpf]=useState(""),[password,setPassword]=useState(""),[confirmation,setConfirmation]=useState(""),[pendingEmail,setPendingEmail]=useState(""),[verified,setVerified]=useState(false);

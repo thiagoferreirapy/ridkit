@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { Product } from "@/lib/catalog";
 import { useShop, type CartItem } from "@/components/shop-state";
+import { WhatsAppIcon } from "@/components/whatsapp-icon";
 
 const formatMoney=(cents:number)=>(cents/100).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 
@@ -36,7 +37,7 @@ export function Header() {
   const [searchLoading,setSearchLoading]=useState(false);
   const [cart, setCart] = useState(false);
   const {sessionId,cart:cartData,removeCartItem,settings}=useShop();
-  useEffect(()=>{if(!search||!sessionId)return;const controller=new AbortController();const timer=setTimeout(async()=>{setSearchLoading(true);try{const response=await fetch(`/api/search?session_id=${encodeURIComponent(sessionId)}&q=${encodeURIComponent(searchQuery)}`,{signal:controller.signal});const payload=await response.json();if(response.ok)setSearchData(payload.data);}catch(error){if((error as Error).name!=="AbortError")console.error(error);}finally{setSearchLoading(false);}},searchQuery?220:0);return()=>{clearTimeout(timer);controller.abort();};},[search,searchQuery,sessionId]);
+  useEffect(()=>{if(!search||!sessionId)return;const controller=new AbortController();const timer=setTimeout(async()=>{setSearchLoading(true);try{const response=await fetch(`/api/search?session_id=${encodeURIComponent(sessionId)}&q=${encodeURIComponent(searchQuery)}`,{signal:controller.signal});const payload=await response.json();if(response.ok&&!controller.signal.aborted)setSearchData(payload.data);}catch(error){if((error as Error).name!=="AbortError")console.error(error);}finally{if(!controller.signal.aborted)setSearchLoading(false);}},searchQuery?220:0);return()=>{clearTimeout(timer);controller.abort();};},[search,searchQuery,sessionId]);
   const saveSearch=(query:string)=>fetch("/api/search",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session_id:sessionId,query})});
   const runSearch=async(query:string)=>{const value=query.trim();if(value.length<2)return;await saveSearch(value);setSearch(false);setSearchQuery("");router.push(`/busca?q=${encodeURIComponent(value)}`);};
   const openProduct=async(item:{slug:string;name:string})=>{await saveSearch(searchQuery.trim()||item.name);setSearch(false);setSearchQuery("");router.push(`/produto/${item.slug}`);};
@@ -56,19 +57,19 @@ export function Header() {
             <Search size={18}/> Buscar capacetes, marcas ou acessórios…
           </button>
           <nav aria-label="Navegação principal" className="hidden items-center gap-5 text-[13px] font-medium md:flex">
-            <Link href="/categorias">Categorias</Link><Link href="/comparar">Comparar</Link><Link href="/conta/favoritos">Favoritos</Link><Link href="/conta">Conta</Link>
+            <Link href="/categorias">Categorias</Link><Link href="/conta/favoritos">Favoritos</Link><Link href="/conta">Conta</Link>
           </nav>
           <button aria-label="Buscar" onClick={() => setSearch(true)} className="focus-ring rounded-lg p-2 md:hidden"><Search size={21}/></button>
           <button aria-label={`Carrinho com ${cartData.summary.items} itens`} onClick={() => setCart(true)} className="focus-ring relative rounded-lg p-2"><ShoppingBag size={21}/>{cartData.summary.items>0&&<span className="absolute right-0 top-0 grid min-h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[9px] font-bold text-white">{cartData.summary.items}</span>}</button>
         </div>
       </header>
 
-      {menu && <Overlay onClose={() => setMenu(false)} side="left">
+      <Overlay open={menu} onClose={() => setMenu(false)} side="left">
         <div className="flex items-center justify-between"><b className="text-xl">RIDEKIT</b><Close onClick={() => setMenu(false)}/></div>
         <p className="mt-8 text-xs font-semibold uppercase tracking-widest text-muted">Comprar</p>
         <div className="mt-3 grid gap-1">{navigation.categories.slice(0,5).map(item=><Link onClick={()=>setMenu(false)} className="rounded-xl px-3 py-3 text-lg font-semibold hover:bg-canvas" href={`/capacetes?category=${encodeURIComponent(item.slug)}`} key={item.slug}>{item.name}</Link>)}{navigation.categories.length>5&&<Link onClick={()=>setMenu(false)} className="rounded-xl px-3 py-3 text-sm font-semibold text-accent hover:bg-canvas" href="/categorias">Ver mais categorias →</Link>}<div className="my-2 border-t border-line"/>{navigation.hasOffers&&<Link onClick={()=>setMenu(false)} className="rounded-xl px-3 py-3 text-lg font-semibold hover:bg-canvas" href="/ofertas">Ofertas</Link>}{navigation.hasLaunches&&<Link onClick={()=>setMenu(false)} className="rounded-xl px-3 py-3 text-lg font-semibold hover:bg-canvas" href="/lancamentos">Lançamentos</Link>}<Link onClick={()=>setMenu(false)} className="rounded-xl px-3 py-3 text-lg font-semibold hover:bg-canvas" href="/marcas">Marcas</Link><Link onClick={()=>setMenu(false)} className="rounded-xl px-3 py-3 text-lg font-semibold hover:bg-canvas" href="/conta/favoritos">Favoritos</Link><Link onClick={()=>setMenu(false)} className="rounded-xl px-3 py-3 text-lg font-semibold hover:bg-canvas" href="/conta">Minha conta</Link></div>
         <div className="mt-8 rounded-2xl bg-dark p-5 text-white"><p className="text-lg font-semibold">Precisa de ajuda?</p><p className="mt-2 text-sm text-[#aeb4bd]">Fale com quem entende de equipamento.</p><Button href="/contato" className="mt-4 w-full">Falar com a Ridekit</Button></div>
-      </Overlay>}
+      </Overlay>
 
       {search && <div className="fixed inset-0 z-50 bg-dark/70 p-4 backdrop-blur-sm" onMouseDown={()=>setSearch(false)}>
         <div className="mx-auto mt-10 max-w-3xl rounded-3xl bg-white p-5 shadow-2xl" onMouseDown={e=>e.stopPropagation()}>
@@ -77,16 +78,23 @@ export function Header() {
         </div>
       </div>}
 
-      {cart && <Overlay onClose={()=>setCart(false)} side="right">
+      <Overlay open={cart} onClose={()=>setCart(false)} side="right">
         <div className="flex items-center justify-between"><b className="text-xl">Seu carrinho</b><Close onClick={()=>setCart(false)}/></div>
         {cartData.items.length?<><div className="mt-8 grid gap-4">{cartData.items.map(item=><MiniCartItem item={item} onRemove={()=>removeCartItem(item.id)} key={item.id}/>)}</div><div className="mt-8 border-t border-line pt-5"><div className="flex justify-between text-sm text-muted"><span>Subtotal</span><b className="text-lg text-ink">{formatMoney(cartData.summary.subtotal_cents)}</b></div><Button href="/carrinho" className="mt-5 w-full" onClick={()=>setCart(false)}>Revisar carrinho <ArrowRight size={17}/></Button></div></>:<div className="mt-10 rounded-2xl bg-canvas p-7 text-center"><ShoppingBag className="mx-auto text-muted"/><b className="mt-4 block">Seu carrinho está vazio</b><p className="mt-2 text-xs text-muted">Adicione um produto para começar.</p><Button href="/capacetes" className="mt-5" onClick={()=>setCart(false)}>Ver produtos</Button></div>}
-      </Overlay>}
+      </Overlay>
     </>
   );
 }
 
 function Close({onClick}:{onClick:()=>void}) { return <button type="button" aria-label="Fechar" onClick={onClick} className="focus-ring rounded-xl border border-line p-2"><X size={20}/></button>; }
-function Overlay({children,onClose,side}:{children:React.ReactNode;onClose:()=>void;side:"left"|"right"}) { useEffect(()=>{const close=(event:KeyboardEvent)=>{if(event.key==="Escape")onClose();};document.addEventListener("keydown",close);return()=>document.removeEventListener("keydown",close);},[onClose]);return <div role="presentation" className="fixed inset-0 z-50 bg-dark/60 backdrop-blur-sm" onMouseDown={onClose}><aside role="dialog" aria-modal="true" aria-label={side==="left"?"Menu de navegação":"Carrinho"} onMouseDown={e=>e.stopPropagation()} className={`absolute inset-y-0 ${side === "left" ? "left-0" : "right-0"} w-[min(390px,92vw)] overflow-y-auto bg-white p-6 shadow-2xl`}>{children}</aside></div>; }
+function Overlay({children,onClose,side,open}:{children:React.ReactNode;onClose:()=>void;side:"left"|"right";open:boolean}) {
+  const [rendered,setRendered]=useState(open),[active,setActive]=useState(false);
+  useEffect(()=>{let firstFrame=0,secondFrame=0,timer:ReturnType<typeof setTimeout>|undefined;if(open){setRendered(true);setActive(false);firstFrame=requestAnimationFrame(()=>{secondFrame=requestAnimationFrame(()=>setActive(true));});}else{setActive(false);timer=setTimeout(()=>setRendered(false),320);}return()=>{cancelAnimationFrame(firstFrame);cancelAnimationFrame(secondFrame);if(timer)clearTimeout(timer);};},[open]);
+  useEffect(()=>{if(!rendered)return;const close=(event:KeyboardEvent)=>{if(event.key==="Escape")onClose();};document.addEventListener("keydown",close);return()=>document.removeEventListener("keydown",close);},[rendered,onClose]);
+  useEffect(()=>{if(!open)return;const previous=document.body.style.overflow;document.body.style.overflow="hidden";return()=>{document.body.style.overflow=previous;};},[open]);
+  if(!rendered)return null;
+  return <div role="presentation" aria-hidden={!active} className={`fixed inset-0 z-50 bg-dark/60 backdrop-blur-sm transition-opacity duration-300 ease-out motion-reduce:transition-none ${active?"opacity-100":"pointer-events-none opacity-0"}`} onMouseDown={onClose}><aside role="dialog" aria-modal="true" aria-label={side==="left"?"Menu de navegação":"Carrinho"} onMouseDown={e=>e.stopPropagation()} className={`absolute inset-y-0 ${side === "left" ? "left-0 w-full md:w-[390px]" : "right-0 w-[min(390px,92vw)]"} max-w-full overflow-y-auto bg-white p-6 shadow-2xl will-change-transform transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)] motion-reduce:transform-none motion-reduce:transition-none ${active?"translate-x-0":side==="left"?"-translate-x-full":"translate-x-full"}`}>{children}</aside></div>;
+}
 
 function MiniCartItem({item,onRemove}:{item:CartItem;onRemove:()=>void}) { return <div className="flex gap-4 rounded-2xl border border-line p-3"><ProductVisual image={item.image_url} className="size-20 shrink-0"/><div className="min-w-0 flex-1"><div className="flex gap-2"><b className="min-w-0 flex-1 truncate text-sm">{item.name}</b><button onClick={onRemove} aria-label={`Remover ${item.name}`} className="text-muted hover:text-danger"><X size={15}/></button></div><p className="mt-1 text-xs text-muted">{item.color} · {item.size}</p><div className="mt-3 flex items-center justify-between"><span className="text-xs">Qtd. {item.quantity}</span><b className="text-sm">{formatMoney(item.total_cents)}</b></div></div></div>; }
 
@@ -99,7 +107,27 @@ export function ProductVisual({tone="from-zinc-950 to-zinc-700", className="", i
 
 export function ProductCard({product, compact=false}:{product:Product;compact?:boolean}) {
   const {toggleFavorite,isFavorite,busy,settings}=useShop(); const favorite=isFavorite(product.id);
+  const [storeOrigin,setStoreOrigin]=useState("");
+  useEffect(()=>setStoreOrigin(window.location.origin),[]);
   const outOfStock=product.availableStock===0;
+  const whatsappEnabled=settings.purchase_mode==="whatsapp";
+  const productUrl=`${storeOrigin}/produto/${product.slug}`;
+  const whatsappMessage=[
+    settings.whatsapp_message_intro,
+    "",
+    `*Produto: ${product.brand} ${product.name}*`,
+    `Marca: ${product.brand}`,
+    product.category?`Categoria: ${product.category}`:"",
+    `Valor: ${product.price}`,
+    product.oldPrice?`Valor anterior: ${product.oldPrice}`:"",
+    product.sizes?.length?`Tamanhos disponíveis: ${product.sizes.map(size=>size.replace(" / ","/")).join(", ")}`:"Tamanho: confirmar disponibilidade",
+    `Condições: até ${settings.max_installments}x sem juros · ${settings.pix_discount_percent}% de desconto no Pix`,
+    "Disponibilidade: em estoque",
+    storeOrigin?`Link do produto: ${productUrl}`:"",
+    "",
+    "Gostaria de confirmar o tamanho e a disponibilidade para compra.",
+  ].filter(Boolean).join("\n");
+  const whatsappHref=`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(whatsappMessage)}`;
   return <article className="group rounded-[18px] border border-line bg-white p-3 transition hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(11,13,16,.10)] md:p-4">
       <div className="relative"><Link href={`/produto/${product.slug}`} className="block"><ProductVisual tone={product.tone} image={product.image} className={`${compact?"aspect-square":"aspect-[1.15]"} ${outOfStock?"opacity-60 grayscale":""}`}/></Link>{outOfStock?<span className="absolute left-3 top-3 rounded-full bg-dark px-2.5 py-1 text-[9px] font-bold tracking-wide text-white">SEM ESTOQUE</span>:product.tag&&<span className="absolute left-3 top-3 rounded-full bg-white px-2.5 py-1 text-[9px] font-bold tracking-wide">{product.tag}</span>}<button disabled={!product.id||busy} onClick={()=>product.id&&toggleFavorite(product.id)} aria-label={favorite?`Remover ${product.name} dos favoritos`:`Adicionar ${product.name} aos favoritos`} aria-pressed={favorite} className={`focus-ring absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-white/90 transition ${favorite?"text-accent":"text-muted hover:text-accent"}`}><Heart size={17} className={favorite?"fill-current":""}/></button></div>
     <Link href={`/produto/${product.slug}`} className="block">
@@ -108,7 +136,7 @@ export function ProductCard({product, compact=false}:{product:Product;compact?:b
       <div className="mt-2 flex items-baseline gap-2">{product.oldPrice&&<s className="text-xs text-muted">{product.oldPrice}</s>}<b className="text-base md:text-lg">{product.price}</b></div>
       <p className="mt-1 text-[10px] text-muted md:text-xs">{settings.max_installments}x sem juros · {settings.pix_discount_percent}% no Pix</p>
       {product.sizes&&product.sizes.length>0&&<div className="mt-3 flex flex-wrap gap-1.5" aria-label="Tamanhos disponíveis">{product.sizes.map(size=><span key={size} className="grid h-8 min-w-8 place-items-center rounded-lg border border-line px-2 text-[11px]">{size.replace(" / ","/")}</span>)}</div>}
-    </Link>{outOfStock?<div aria-disabled="true" className="mt-3 flex min-h-11 w-full items-center justify-center rounded-xl bg-[#e8eaed] px-4 text-sm font-semibold text-muted">Produto indisponível</div>:<Link href={`/produto/${product.slug}`} aria-label={`${settings.purchase_mode==="whatsapp"?"Comprar":"Adicionar"} ${product.name}`} className={`focus-ring mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-white transition ${settings.purchase_mode==="whatsapp"?"bg-[#25D366] hover:bg-[#1fb958]":"bg-accent hover:bg-[#e94600]"}`}>{settings.purchase_mode==="whatsapp"?<><MessageCircle size={18}/>Comprar pelo WhatsApp</>:<><ShoppingBag size={18}/>Adicionar ao carrinho</>}</Link>}
+    </Link>{outOfStock?<div aria-disabled="true" className="mt-3 flex min-h-11 w-full items-center justify-center rounded-xl bg-[#e8eaed] px-4 text-sm font-semibold text-muted">Produto indisponível</div>:<div className="mt-3 grid gap-2"><Link href={`/produto/${product.slug}`} aria-label={`Adicionar ${product.name} ao carrinho`} className="focus-ring flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#e94600]"><ShoppingBag size={18}/>Adicionar ao carrinho</Link>{whatsappEnabled&&<a href={whatsappHref} target="_blank" rel="noopener noreferrer" aria-label={`Comprar ${product.name} pelo WhatsApp`} className="focus-ring flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 text-sm font-semibold text-white transition hover:bg-[#1fb958]"><WhatsAppIcon className="size-[19px] shrink-0"/>Comprar pelo WhatsApp</a>}</div>}
   </article>;
 }
 

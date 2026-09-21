@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowLeft, ArrowRight, BadgeCheck, BarChart3, Check, ChevronRight, CircleAlert, Copy,
-  Activity, CreditCard, Gauge, Heart, HelpCircle, Image as ImageIcon, LayoutDashboard, LockKeyhole, Mail, MapPin,
+  Activity, CreditCard, Heart, HelpCircle, Image as ImageIcon, LayoutDashboard, LockKeyhole, Mail, MapPin,
   Home, LogOut, MessageCircle, Package, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Search, Settings,
   Send, Shapes, ShieldCheck, ShoppingBag, Star, Tags, Trash2, Truck, Users, Warehouse, X, Scale,
 } from "lucide-react";
@@ -36,6 +36,8 @@ import { AccountSkeleton,CardListSkeleton,FormSkeleton,ProductDetailsSkeleton } 
 import { calculateCheckoutTotals,validateCheckoutAddress,type CheckoutShipping } from "@/lib/checkout-calculations";
 import { hasAdminPermission,permissionForAdminSection } from "@/lib/admin-permissions";
 
+import { resolveSearchFilters } from "@/lib/product-search";
+
 const money=(cents:number)=>(cents/100).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 
 type CatalogOption={id?:number;name?:string;slug?:string;size?:string;product_count:number;has_sizes?:number};
@@ -51,9 +53,9 @@ function relevantPrices(productsIndex:FilterProduct[]) {
   return priceLimits.map(limit=>({limit,count:productsIndex.filter(product=>product.price_cents<=limit*100).length})).filter((item,index,items)=>item.count>0&&(index===0||item.count!==items[index-1].count));
 }
 
-function useCatalog() {
+function useCatalog(query="") {
   const [catalog,setCatalog]=useState<CatalogData>({brands:[],categories:[],sizes:[],filter_products:[]});
-  useEffect(()=>{const controller=new AbortController();fetch("/api/catalog",{signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject()).then(({data})=>setCatalog({...data,filter_products:data.filter_products.map((product:FilterProduct)=>({...product,sizes:product.sizes_csv?product.sizes_csv.split("|"):[]}))})).catch(()=>{});return()=>controller.abort();},[]);
+  useEffect(()=>{const controller=new AbortController();fetch(`/api/catalog?q=${encodeURIComponent(query)}`,{signal:controller.signal}).then(r=>r.ok?r.json():Promise.reject()).then(({data})=>setCatalog({...data,filter_products:data.filter_products.map((product:FilterProduct)=>({...product,sizes:product.sizes_csv?product.sizes_csv.split("|"):[]}))})).catch(()=>{});return()=>controller.abort();},[query]);
   return catalog;
 }
 function useAccount(){const {authFetch,user}=useAuth();const [data,setData]=useState<AccountData|null>(null);useEffect(()=>{if(!user)return;const controller=new AbortController();authFetch("/api/account",{signal:controller.signal}).then(response=>response.ok?response.json():Promise.reject()).then(payload=>setData(payload.data)).catch(()=>{});return()=>controller.abort();},[user]);return data;}
@@ -73,7 +75,23 @@ function useApiProducts(limit=12, query="") {
 
 type ApiProduct={id:number;slug:string;brand:string;name:string;price_cents:number;compare_at_cents?:number;image_url?:string;featured:number;photographer?:string;category?:string;sizes_csv?:string;available_stock?:number};
 const mapApiProduct=(p:ApiProduct):Product=>({id:p.id,slug:p.slug,brand:p.brand,name:p.name,price:money(p.price_cents),oldPrice:p.compare_at_cents?money(p.compare_at_cents):undefined,tone:"from-zinc-950 to-zinc-700",tag:p.featured?"DESTAQUE":undefined,image:p.image_url,photographer:p.photographer,priceCents:p.price_cents,compareAtCents:p.compare_at_cents,category:p.category,sizes:p.sizes_csv?p.sizes_csv.split("|"):[],availableStock:p.available_stock});
-function usePaginatedProducts(query:string){const [items,setItems]=useState<Product[]>([]),[page,setPage]=useState(1),[pages,setPages]=useState(1),[total,setTotal]=useState(0),[loading,setLoading]=useState(true);useEffect(()=>{setItems([]);setPage(1);},[query]);useEffect(()=>{const controller=new AbortController();setLoading(true);fetch(`/api/products?limit=12&page=${page}${query}`,{signal:controller.signal}).then(response=>response.ok?response.json():Promise.reject()).then(({data})=>{setItems(current=>page===1?data.items.map(mapApiProduct):[...current,...data.items.map(mapApiProduct)]);setPages(data.pagination.pages);setTotal(data.pagination.total);}).catch(()=>{}).finally(()=>setLoading(false));return()=>controller.abort();},[page,query]);return {items,total,loading,hasMore:page<pages,loadMore:()=>setPage(current=>current+1)};}
+function usePaginatedProducts(query:string){
+  const [request,setRequest]=useState({query,page:1});
+  const [result,setResult]=useState({query,items:[] as Product[],pages:1,total:0});
+  const [loading,setLoading]=useState(true);
+  const page=request.query===query?request.page:1;
+  if(request.query!==query)setRequest({query,page:1});
+  useEffect(()=>{
+    const controller=new AbortController();setLoading(true);
+    fetch(`/api/products?limit=12&page=${page}${query}`,{signal:controller.signal})
+      .then(response=>response.ok?response.json():Promise.reject())
+      .then(({data})=>{if(!controller.signal.aborted)setResult(current=>({query,items:page===1||current.query!==query?data.items.map(mapApiProduct):[...current.items,...data.items.map(mapApiProduct)],pages:data.pagination.pages,total:data.pagination.total}));})
+      .catch(()=>{}).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
+    return()=>controller.abort();
+  },[page,query]);
+  const current=result.query===query;
+  return {items:current?result.items:[],total:current?result.total:0,loading:loading||!current,hasMore:current&&page<result.pages,loadMore:()=>setRequest({query,page:page+1})};
+}
 
 type HeroSlide={id:string;badge?:string;title:string;description:string;image_url:string;mobile_image_url?:string;cta_label:string;cta_url:string;secondary_label?:string;secondary_url?:string};
 const fallbackHeroSlides:HeroSlide[]=[
@@ -144,16 +162,20 @@ function CatalogControls({basePath,catalog}:{basePath:string;catalog:CatalogData
   const category=searchParams.get("category")||""; const brand=searchParams.get("brand")||""; const size=searchParams.get("size")||"";
   const sourceProducts=basePath==="/ofertas"?catalog.filter_products.filter(product=>product.on_sale):basePath==="/lancamentos"?catalog.filter_products.filter(product=>product.is_new):catalog.filter_products;
   const facetCatalog={...catalog,filter_products:sourceProducts};
-  const categoryProducts=matchingProducts(facetCatalog,{category});
-  const brandOptions=catalog.brands.filter(item=>categoryProducts.some(product=>product.brand_slug===item.slug));
-  const sizeProducts=matchingProducts(facetCatalog,{category,brand});
-  const sizeOptions=catalog.sizes.map(item=>({...item,available:sizeProducts.filter(product=>product.sizes.includes(item.size||"")).length})).filter(item=>item.available>0);
-  const sizeDisabled=sizeOptions.length===0;
-  const priceProducts=matchingProducts(facetCatalog,{category,brand,size}); const priceOptions=relevantPrices(priceProducts);
-  const change=(key:string,value:string)=>{const next=new URLSearchParams(searchParams.toString());if(value)next.set(key,value);else next.delete(key);if(key==="category"){next.delete("brand");next.delete("size");next.delete("max_price");}if(key==="brand"){next.delete("size");next.delete("max_price");}if(key==="size")next.delete("max_price");router.push(`${basePath}${next.size?`?${next.toString()}`:""}`);};
+  const maxPrice=searchParams.get("max_price")||"";
+  const categoriesProducts=matchingProducts(facetCatalog,{brand,size,maxPrice});
+  const categoryProducts=matchingProducts(facetCatalog,{category,size,maxPrice});
+  const brandOptions=catalog.brands.filter(item=>item.slug===brand||categoryProducts.some(product=>product.brand_slug===item.slug));
+  const sizeProducts=matchingProducts(facetCatalog,{category,brand,maxPrice});
+  const sizeOptions=catalog.sizes.map(item=>({...item,available:sizeProducts.filter(product=>product.sizes.includes(item.size||"")).length})).filter(item=>item.available>0||item.size===size);
+  const sizeDisabled=sizeOptions.length===0&&!size;
+  const priceProducts=matchingProducts(facetCatalog,{category,brand,size});
+  const priceOptions=relevantPrices(priceProducts);
+  if(maxPrice&&!priceOptions.some(item=>item.limit===Number(maxPrice)))priceOptions.push({limit:Number(maxPrice),count:priceProducts.filter(product=>product.price_cents<=Number(maxPrice)*100).length});
+  const change=(key:string,value:string)=>{const next=new URLSearchParams(searchParams.toString());if(value)next.set(key,value);else next.delete(key);router.push(`${basePath}${next.size?`?${next.toString()}`:""}`);};
   const selectClass="h-11 w-full rounded-xl border border-line bg-white px-3 text-sm text-muted";
   return <div className="mb-6 grid gap-3 rounded-2xl border border-line bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
-    <select aria-label="Filtrar por categoria" value={category} onChange={e=>change("category",e.target.value)} className={selectClass}><option value="">Todas as categorias ({sourceProducts.length})</option>{catalog.categories.filter(item=>sourceProducts.some(product=>product.category_slug===item.slug)).map(item=>{const count=sourceProducts.filter(product=>product.category_slug===item.slug).length;return <option value={item.slug} key={item.slug}>{item.name} ({count})</option>;})}</select>
+    <select aria-label="Filtrar por categoria" value={category} onChange={e=>change("category",e.target.value)} className={selectClass}><option value="">Todas as categorias ({categoriesProducts.length})</option>{catalog.categories.filter(item=>item.slug===category||categoriesProducts.some(product=>product.category_slug===item.slug)).map(item=>{const count=categoriesProducts.filter(product=>product.category_slug===item.slug).length;return <option value={item.slug} key={item.slug}>{item.name} ({count})</option>;})}</select>
     <select aria-label="Filtrar por marca" value={brand} onChange={e=>change("brand",e.target.value)} className={selectClass}><option value="">Todas as marcas ({categoryProducts.length})</option>{brandOptions.map(item=>{const count=categoryProducts.filter(product=>product.brand_slug===item.slug).length;return <option value={item.slug} key={item.slug}>{item.name} ({count})</option>;})}</select>
     <select aria-label="Filtrar por tamanho" disabled={sizeDisabled} value={sizeDisabled?"":size} onChange={e=>change("size",e.target.value)} className={`${selectClass} disabled:cursor-not-allowed disabled:bg-canvas disabled:opacity-60`}><option value="">{sizeDisabled?"Tamanho não aplicável":`Todos os tamanhos (${sizeProducts.length})`}</option>{sizeOptions.map(item=><option value={item.size} key={item.size}>{item.size} ({item.available})</option>)}</select>
     <select aria-label="Filtrar por preço" disabled={priceOptions.length===0} value={searchParams.get("max_price")||""} onChange={e=>change("max_price",e.target.value)} className={`${selectClass} disabled:cursor-not-allowed disabled:bg-canvas disabled:opacity-60`}><option value="">Qualquer preço ({priceProducts.length})</option>{priceOptions.map(item=><option value={item.limit} key={item.limit}>Até {item.limit.toLocaleString("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:0})} ({item.count})</option>)}</select>
@@ -172,7 +194,6 @@ function resolveStorePage(path:string) {
   if (path === "/recuperar-senha") return <PasswordRecovery/>;
   if (path === "/redefinir-senha") return <PasswordRecovery reset/>;
   if (path === "/marcas" || path.startsWith("/marcas/")) return <BrandsPage slug={path.split("/")[2]||""}/>;
-  if (path === "/comparar") return <ComparePage/>;
   if (path.startsWith("/conta")) return <AccountPage path={path}/>;
   if (["/sobre","/contato","/entrega","/garantia","/privacidade","/termos","/guia-de-tamanho","/ajuda","/ajuda/devolucoes"].includes(path)) return <ContentPage path={path}/>;
   if (path === "/mapa") return <RouteMapPage/>;
@@ -188,7 +209,7 @@ function HomePage() {
     <HomeFinder/>
     <section className="container-page py-14 md:py-20"><SectionTitle title="Categorias" description="Todas as seções disponíveis no catálogo."/><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">{catalog.categories.map((item,i)=><Link href={`/capacetes?category=${item.slug}`} className="group rounded-2xl bg-[#eef0f2] p-5 transition hover:bg-dark hover:text-white md:p-7" key={item.slug}><span className="text-xs font-bold text-accent">{String(i+1).padStart(2,"0")}</span><h3 className="mt-8 text-lg font-semibold">{item.name}</h3><p className="mt-2 text-xs text-muted group-hover:text-white/60">{item.product_count} produtos</p></Link>)}</div></section>
     <section className="container-page pb-16"><SectionTitle title="Mais vendidos" description="Os favoritos de quem pilota todos os dias." action={<Link href="/capacetes" className="hidden text-sm font-semibold md:block">Ver todos →</Link>}/><ProductGrid products={homeProducts.slice(0,4)}/></section>
-    <section className="container-page mb-16 overflow-hidden rounded-[22px] bg-[#e9ecef] p-8 md:p-12"><div className="grid items-center gap-8 md:grid-cols-2"><div><p className="text-xs font-bold uppercase tracking-[.2em] text-accent">Guia Ridekit</p><h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] md:text-4xl">Proteção que acompanha seu ritmo.</h2><p className="mt-4 max-w-lg text-sm leading-6 text-muted">Descubra o tamanho, o tipo de casco e os recursos certos para o seu uso.</p><Button href="/guia-de-tamanho" variant="dark" className="mt-6">Ver guia de tamanho</Button></div><div className="h-56 rounded-2xl bg-[linear-gradient(135deg,#20242a,#0b0d10)] p-8 text-white"><Gauge className="text-accent" size={40}/><p className="mt-16 text-sm text-white/60">Cidade · Estrada · Aventura</p></div></div></section>
+    <section className="container-page mb-16 overflow-hidden rounded-[22px] bg-[#e9ecef] p-8 md:p-12"><div className="grid items-center gap-8 md:grid-cols-2"><div><p className="text-xs font-bold uppercase tracking-[.2em] text-accent">Guia Ridekit</p><h2 className="mt-4 text-3xl font-semibold tracking-[-.04em] md:text-4xl">Proteção que acompanha seu ritmo.</h2><p className="mt-4 max-w-lg text-sm leading-6 text-muted">Descubra o tamanho, o tipo de casco e os recursos certos para o seu uso.</p><Button href="/guia-de-tamanho" variant="dark" className="mt-6">Ver guia de tamanho</Button></div><figure className="group relative h-64 overflow-hidden rounded-2xl bg-[#d9dcdf] md:h-72"><img src="/images/helmet-size-guide.png" alt="Pessoa posicionando uma fita métrica ao redor da cabeça, acima das sobrancelhas, para escolher o tamanho do capacete" className="size-full object-cover object-center transition duration-500 group-hover:scale-[1.02]"/><figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-5 pb-5 pt-14 text-sm font-medium text-white">Meça acima das sobrancelhas e ao redor da parte mais larga da cabeça.</figcaption></figure></div></section>
     <section className="container-page pb-16"><SectionTitle title="Marcas em destaque" description="Escolha por fabricante e encontre peças compatíveis."/><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">{catalog.brands.slice(0,6).map(item=><Link href={`/marcas/${item.slug}`} className="grid h-24 place-items-center rounded-2xl border border-line bg-white text-lg font-bold transition hover:border-ink" key={item.slug}>{item.name}</Link>)}</div></section>
     <section className="container-page pb-16"><SectionTitle title="Lançamentos" description="Novos gráficos, materiais e tecnologias que acabaram de chegar."/><ProductGrid products={homeProducts.slice(4,8)}/></section>
     <section className="container-page pb-16"><SectionTitle title="Compra sem ruído" description="O básico bem feito antes, durante e depois do pedido."/><TrustStrip/></section>
@@ -204,7 +225,13 @@ function AuthWelcome(){
 }
 
 function CatalogPage({path}:{path:string}) {
-  const offers=path==="/ofertas",launches=path==="/lancamentos"; const searchParams=useSearchParams(); const catalog=useCatalog();
+  const offers=path==="/ofertas",launches=path==="/lancamentos"; const searchParams=useSearchParams(); const router=useRouter(); const catalog=useCatalog(searchParams.get("q")||"");
+  const canonical=new URLSearchParams(searchParams.toString());
+  const inferred=resolveSearchFilters(canonical.get("q")||"",catalog.brands,catalog.categories);
+  if(inferred.brand&&!canonical.has("brand")){canonical.set("brand",inferred.brand);canonical.delete("q");}
+  if(inferred.category&&!canonical.has("category")){canonical.set("category",inferred.category);canonical.delete("q");}
+  const canonicalQuery=canonical.toString(),currentQuery=searchParams.toString();
+  useEffect(()=>{if(canonicalQuery!==currentQuery)router.replace(`${path}?${canonicalQuery}`,{scroll:false});},[canonicalQuery,currentQuery,path,router]);
   const query=new URLSearchParams(searchParams.toString()); if(offers)query.set("offer","1");if(launches)query.set("new","1");
   const productQuery=query.size?`&${query.toString()}`:"",listing=usePaginatedProducts(productQuery),apiProducts=listing.items;
   const selectedCategory=catalog.categories.find(item=>item.slug===searchParams.get("category")); const searchTerm=searchParams.get("q")?.trim();
@@ -290,15 +317,6 @@ function AuthPage(){const {login,register,user,loading}=useAuth();const router=u
 function AuthField({name,label,type="text",autoComplete="off"}:{name:string;label:string;type?:string;autoComplete?:string}){return <label className="text-xs font-semibold">{label}<input required name={name} type={type} autoComplete={autoComplete} className="mt-2 h-12 w-full rounded-xl border border-line px-4 text-sm font-normal outline-none focus:border-accent"/></label>;}
 
 function BrandsPage({slug}:{slug:string}) { const catalog=useCatalog();const brand=catalog.brands.find(item=>item.slug===slug);const brandProducts=useApiProducts(24,slug?`&brand=${encodeURIComponent(slug)}`:"");if(slug)return <div className="container-page py-10"><section className="grid overflow-hidden rounded-3xl bg-dark text-white md:grid-cols-2"><div className="p-8 md:p-12"><p className="text-xs font-bold uppercase tracking-[.2em] text-accent">{brand?.name||"Marca"}</p><h1 className="mt-5 text-4xl font-semibold tracking-[-.05em] md:text-5xl">A coleção completa da {brand?.name||slug}.</h1><p className="mt-5 text-sm leading-6 text-white/60">{brandProducts.length} produtos disponíveis, com estoque, tamanhos e preços atualizados pelo catálogo.</p><Button href={`/capacetes?brand=${slug}`} className="mt-7">Filtrar coleção</Button></div><div className="min-h-72 bg-[#24272d] p-6">{brandProducts[0]&&<ProductVisual image={brandProducts[0].image} className="h-full !bg-transparent"/>}</div></section><section className="py-14"><SectionTitle title={`Produtos ${brand?.name||slug}`}/><ProductGrid products={brandProducts}/></section></div>;return <div className="container-page py-10"><SectionTitle title="Marcas" description="Fabricantes cadastrados e ativos no catálogo."/><div className="grid grid-cols-2 gap-4 md:grid-cols-4">{catalog.brands.map(item=><Link href={`/marcas/${item.slug}`} className="grid h-40 place-items-center rounded-2xl border border-line bg-white text-2xl font-bold hover:border-ink" key={item.slug}>{item.name}</Link>)}</div></div>; }
-
-function ComparePage() {
-  const [products,setProducts]=useState<ProductDetailData[]>([]),[loading,setLoading]=useState(true);
-  useEffect(()=>{let active=true;const load=async()=>{let stored:{slug:string}[]=[];try{stored=JSON.parse(localStorage.getItem("ridekit-compare")||"[]");}catch{}const details=await Promise.all(stored.slice(0,3).map(item=>fetch(`/api/products/${encodeURIComponent(item.slug)}`).then(response=>response.ok?response.json():null)));if(active){setProducts(details.filter(Boolean).map(item=>item.data));setLoading(false);}};load();const update=()=>load();window.addEventListener("ridekit-compare-change",update);return()=>{active=false;window.removeEventListener("ridekit-compare-change",update);};},[]);
-  const remove=(slug:string)=>{const next=products.filter(item=>item.slug!==slug);setProducts(next);localStorage.setItem("ridekit-compare",JSON.stringify(next));window.dispatchEvent(new Event("ridekit-compare-change"));};
-  const rows:[string,(product:ProductDetailData)=>React.ReactNode][]=[["Preço",product=>money(product.price_cents)],["Categoria",product=>product.category],["Material do casco",product=>product.shell_material||"Não informado"],["Peso",product=>product.weight_grams?`${product.weight_grams} g`:"Não informado"],["Viseira solar",product=>product.solar_visor?"Sim":"Não"],["Preparado para Pinlock",product=>product.pinlock_ready?"Sim":"Não"],["Cores",product=>[...new Set(product.variants.map(variant=>variant.color))].join(", ")],["Tamanhos/opções",product=>[...new Set(product.variants.filter(variant=>variant.active).map(variant=>variant.size))].join(", ")]];
-  if(loading)return <div className="container-page py-10"><CardListSkeleton rows={3}/></div>;
-  return <div className="container-page py-10"><SectionTitle title="Comparar produtos" description="Selecione até três produtos pelos cards do catálogo."/>{!products.length?<div className="rounded-2xl border border-dashed border-line bg-white p-10 text-center"><Scale className="mx-auto text-muted" size={34}/><h2 className="mt-4 text-xl font-semibold">Nenhum produto selecionado</h2><p className="mt-2 text-sm text-muted">Use o botão “Comparar” nos produtos que deseja analisar lado a lado.</p><Button href="/capacetes" className="mt-6">Escolher produtos</Button></div>:<div className="overflow-x-auto rounded-2xl border border-line bg-white"><table className="w-full min-w-[680px] text-left text-sm"><caption className="sr-only">Comparação de produtos selecionados</caption><thead><tr><th scope="col" className="border-b border-line p-5">Característica</th>{products.map(product=><th scope="col" className="min-w-48 border-b border-line p-5" key={product.slug}><ProductVisual image={product.images[0]?.url} className="mb-3 aspect-square w-28"/><Link href={`/produto/${product.slug}`} className="font-semibold hover:text-accent">{product.name}</Link><button onClick={()=>remove(product.slug)} className="mt-2 block text-xs font-normal text-danger">Remover</button></th>)}</tr></thead><tbody>{rows.map(([label,value])=><tr key={label}><th scope="row" className="border-b border-line p-5 font-semibold">{label}</th>{products.map(product=><td className="border-b border-line p-5 text-muted" key={`${label}-${product.slug}`}>{value(product)}</td>)}</tr>)}</tbody></table></div>}</div>;
-}
 
 function AccountPage({path}:{path:string}) { const {user,loading}=useAuth();const router=useRouter();useEffect(()=>{if(!loading&&!user)router.replace(`/login?next=${encodeURIComponent(path)}`);},[loading,user,path,router]);const orderNumber=path.match(/\/conta\/pedidos\/([^/]+)/)?.[1];const section=path.includes("favoritos")?"Favoritos":path.includes("enderecos")?"Endereços":path.includes("dados")?"Dados pessoais":path.includes("cupons")?"Cupons":orderNumber?`Pedido #${orderNumber}`:path.endsWith("/pedidos")?"Meus pedidos":"Visão geral";if(loading||!user)return <div className="container-page py-12"><AccountSkeleton/></div>;return <div className="container-page py-10"><div className="grid gap-7 lg:grid-cols-[240px_1fr]"><AccountNav/><section><SectionTitle title={section} description={section==="Meus pedidos"?"Acompanhe compra, pagamento e entrega.":section==="Favoritos"?"Produtos que você salvou para consultar depois.":"Tudo da sua conta em um só lugar."}/>{section==="Favoritos"?<FavoritesPage/>:section==="Endereços"?<Addresses/>:section==="Dados pessoais"?<ProfilePage/>:section==="Cupons"?<CouponsPage/>:orderNumber?<OrderDetail orderNumber={orderNumber}/>:section==="Meus pedidos"?<Orders/>:<AccountOverview/>}</section></div></div>; }
 function FavoritesPage(){const {favorites,loading}=useShop();if(loading)return <CardListSkeleton rows={4} images/>;if(!favorites.length)return <div className="rounded-2xl border border-line bg-white p-10 text-center"><Heart className="mx-auto text-muted" size={34}/><h2 className="mt-4 text-xl font-semibold">Nenhum favorito ainda</h2><p className="mt-2 text-sm text-muted">Use o coração nos produtos para guardar suas escolhas.</p><Button href="/capacetes" className="mt-6">Explorar produtos</Button></div>;const items:Product[]=favorites.map(item=>({id:item.id,slug:item.slug,brand:item.brand,name:item.name,price:money(item.price_cents),oldPrice:item.compare_at_cents?money(item.compare_at_cents):undefined,tone:"from-zinc-950 to-zinc-700",tag:item.featured?"DESTAQUE":undefined,image:item.image_url,photographer:item.photographer,category:item.category,sizes:item.sizes_csv?item.sizes_csv.split("|"):[]}));return <ProductGrid products={items} compact/>;}

@@ -3,6 +3,8 @@ import { apiError, created, ok, pagination, slugify } from "@/lib/api";
 import { productSchema } from "@/lib/schemas";
 import { requireAdminPermission } from "@/lib/admin-auth";
 
+import { productSearch } from "@/lib/product-search";
+
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
@@ -12,7 +14,11 @@ export async function GET(request: Request) {
     const where = [adminView?"1=1":"p.active = 1 AND p.publication_status='active'"]; const params: (string|number)[] = [];
     const q = url.searchParams.get("q"); const brand = url.searchParams.get("brand"); const category = url.searchParams.get("category"); const size = url.searchParams.get("size");
     const min = Number(url.searchParams.get("min_price")); const max = Number(url.searchParams.get("max_price")); const featured = url.searchParams.get("featured"); const offer=url.searchParams.get("offer"); const newest=url.searchParams.get("new");
-    if (q) { where.push("(p.name LIKE ? COLLATE NOCASE OR p.description LIKE ? COLLATE NOCASE OR p.sku LIKE ? COLLATE NOCASE OR b.name LIKE ? COLLATE NOCASE OR c.name LIKE ? COLLATE NOCASE)"); params.push(`%${q}%`,`%${q}%`,`%${q}%`,`%${q}%`,`%${q}%`); }
+    if (q) {
+      const db=getDb();
+      const search=productSearch(q,db.prepare("SELECT name,slug FROM brands WHERE active=1").all(),db.prepare("SELECT name,slug FROM categories WHERE active=1").all());
+      where.push(`(${search.sql})`); params.push(...search.params);
+    }
     if (brand) { where.push("b.slug = ?"); params.push(brand); }
     if (category) { where.push("c.slug = ?"); params.push(category); }
     if (size) { where.push("EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id=p.id AND pv.active=1 AND pv.size=?)"); params.push(size); }

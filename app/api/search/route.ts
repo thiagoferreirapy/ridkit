@@ -1,6 +1,8 @@
 import { getDb } from "@/lib/db";
 import { apiError, ok } from "@/lib/api";
 
+import { productSearch, mergePopularSearches } from "@/lib/product-search";
+
 export const runtime = "nodejs";
 
 type SearchItem={id:number;slug:string;name:string;brand:string;category:string;price_cents:number;image_url?:string};
@@ -8,11 +10,13 @@ const normalize=(value:string)=>value.trim().replace(/\s+/g," ").slice(0,80);
 function searchDb(){const db=getDb();db.exec(`CREATE TABLE IF NOT EXISTS search_history (id INTEGER PRIMARY KEY AUTOINCREMENT,session_id TEXT NOT NULL,query TEXT NOT NULL,results_count INTEGER NOT NULL DEFAULT 0,searched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(session_id,query)) STRICT; CREATE INDEX IF NOT EXISTS idx_search_history_session ON search_history(session_id,searched_at DESC);`);return db;}
 
 function findProducts(query:string,limit=8){
-  const term=`%${query}%`; return getDb().prepare(`SELECT p.id,p.slug,p.name,p.price_cents,b.name AS brand,c.name AS category,
+  const db=getDb();
+  const search=productSearch(query,db.prepare("SELECT name,slug FROM brands WHERE active=1").all(),db.prepare("SELECT name,slug FROM categories WHERE active=1").all());
+  return db.prepare(`SELECT p.id,p.slug,p.name,p.price_cents,b.name AS brand,c.name AS category,
     (SELECT url FROM product_images WHERE product_id=p.id ORDER BY position LIMIT 1) AS image_url
     FROM products p JOIN brands b ON b.id=p.brand_id JOIN categories c ON c.id=p.category_id
-    WHERE p.active=1 AND (p.name LIKE ? COLLATE NOCASE OR p.description LIKE ? COLLATE NOCASE OR p.sku LIKE ? COLLATE NOCASE OR b.name LIKE ? COLLATE NOCASE OR c.name LIKE ? COLLATE NOCASE)
-    ORDER BY p.featured DESC,p.rating DESC,p.id ASC LIMIT ?`).all(term,term,term,term,term,limit) as SearchItem[];
+    WHERE p.active=1 AND p.publication_status='active' AND (${search.sql})
+    ORDER BY p.featured DESC,p.rating DESC,p.id ASC LIMIT ?`).all(...search.params,limit) as SearchItem[];
 }
 
 export async function GET(request:Request){
@@ -21,8 +25,8 @@ export async function GET(request:Request){
     const limit=Math.min(12,Math.max(1,Number(url.searchParams.get("limit"))||8)); const db=searchDb();
     const recent=sessionId?db.prepare("SELECT query,results_count,searched_at FROM search_history WHERE session_id=? ORDER BY searched_at DESC LIMIT 6").all(sessionId):[];
     const popular=db.prepare(`SELECT query,SUM(results_count+1) AS score FROM search_history GROUP BY lower(query) ORDER BY score DESC,MAX(searched_at) DESC LIMIT 6`).all();
-    const fallback=db.prepare(`SELECT b.name AS query,COUNT(p.id) AS score FROM brands b JOIN products p ON p.brand_id=b.id AND p.active=1 GROUP BY b.id ORDER BY COUNT(p.id) DESC,b.name LIMIT 6`).all();
-    return ok({query,items:query.length>=2?findProducts(query,limit):[],recent,popular:popular.length?popular:fallback});
+    const fallback=db.prepare(`SELECT b.name AS query,COUNT(p.id) AS score FROM brands b JOIN products p ON p.brand_id=b.id AND p.active=1 AND p.publication_status='active' WHERE b.active=1 GROUP BY b.id ORDER BY COUNT(p.id) DESC,b.name LIMIT 6`).all();
+    return ok({query,items:query.length>=2?findProducts(query,limit):[],recent,popular:mergePopularSearches(popular as {query:string}[],fallback as {query:string}[])});
   }catch(error){return apiError(error);}
 }
 

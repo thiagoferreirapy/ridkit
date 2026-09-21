@@ -1,13 +1,22 @@
 "use client";
 
 import { usePathname,useSearchParams } from "next/navigation";
-import { useEffect,useRef,useState } from "react";
+import { useEffect,useLayoutEffect,useRef,useState } from "react";
 
 export function NavigationTransition(){
   const pathname=usePathname(),searchParams=useSearchParams(),routeKey=`${pathname}?${searchParams.toString()}`;
-  const [visible,setVisible]=useState(false),pending=useRef(false),timer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const [visible,setVisible]=useState(false),pending=useRef(false),timer=useRef<ReturnType<typeof setTimeout>|null>(null),previousPathname=useRef(pathname);
+  useLayoutEffect(()=>{
+    const changed=previousPathname.current!==pathname;
+    previousPathname.current=pathname;
+    if(!changed||pathname.startsWith("/admin"))return;
+    const root=document.documentElement,previous=root.style.scrollBehavior;
+    root.style.scrollBehavior="auto";
+    window.scrollTo({top:0,left:0,behavior:"auto"});
+    root.style.scrollBehavior=previous;
+  },[pathname]);
   useEffect(()=>{if(!pending.current)return;timer.current=setTimeout(()=>{setVisible(false);pending.current=false;},180);return()=>{if(timer.current)clearTimeout(timer.current);};},[routeKey]);
-  useEffect(()=>{const click=(event:MouseEvent)=>{if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;const target=event.target as Element|null,anchor=target?.closest("a[href]") as HTMLAnchorElement|null;if(!anchor||anchor.target==="_blank"||anchor.hasAttribute("download"))return;const next=new URL(anchor.href,window.location.href);if(next.origin!==window.location.origin||next.href===window.location.href||next.hash&&next.pathname===location.pathname&&next.search===location.search)return;pending.current=true;setVisible(true);if(timer.current)clearTimeout(timer.current);timer.current=setTimeout(()=>{setVisible(false);pending.current=false;},2200);requestAnimationFrame(()=>{const root=document.documentElement,previous=root.style.scrollBehavior;root.style.scrollBehavior="auto";window.scrollTo(0,0);requestAnimationFrame(()=>{root.style.scrollBehavior=previous;});});};document.addEventListener("click",click,true);return()=>document.removeEventListener("click",click,true);},[]);
+  useEffect(()=>{const click=(event:MouseEvent)=>{if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;const target=event.target as Element|null,anchor=target?.closest("a[href]") as HTMLAnchorElement|null;if(!anchor||anchor.target==="_blank"||anchor.hasAttribute("download"))return;const next=new URL(anchor.href,window.location.href);if(next.origin!==window.location.origin||next.href===window.location.href||next.hash&&next.pathname===location.pathname&&next.search===location.search)return;pending.current=true;setVisible(true);if(timer.current)clearTimeout(timer.current);timer.current=setTimeout(()=>{setVisible(false);pending.current=false;},2200);};document.addEventListener("click",click,true);return()=>document.removeEventListener("click",click,true);},[]);
   if(!visible)return null;
   return <div role="status" aria-live="polite" aria-label="Carregando nova página" className="fixed inset-0 z-[100] overflow-hidden bg-canvas">
     {pathname.startsWith("/admin")?<AdminTransitionSkeleton/>:<StoreTransitionSkeleton/>}
