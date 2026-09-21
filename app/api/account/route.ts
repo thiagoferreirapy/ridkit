@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import { apiError, ok } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
+import { activeCustomerCoupons } from "@/lib/coupons";
 
 export const runtime="nodejs";
 
@@ -10,7 +11,7 @@ export async function GET(){
     const customer=db.prepare("SELECT id,name,email,cpf,phone,created_at FROM customers WHERE id=?").get(customerId);
     if(!customer)throw new Error("NOT_FOUND");
     const addresses=db.prepare("SELECT * FROM addresses WHERE customer_id=? ORDER BY is_default DESC,id").all(customerId);
-    const coupons=db.prepare("SELECT id,code,description,discount_type,discount_value,min_order_cents,ends_at FROM coupons WHERE active=1 AND (ends_at IS NULL OR ends_at>=date('now')) ORDER BY min_order_cents,id").all();
+    const coupons=activeCustomerCoupons(db,customerId);
     const orders=db.prepare(`SELECT o.id,o.order_number,o.status,o.payment_status,o.total_cents,o.created_at,o.tracking_code,
       (SELECT product_name FROM order_items WHERE order_id=o.id ORDER BY id LIMIT 1) AS product_name,
       (SELECT variant_name FROM order_items WHERE order_id=o.id ORDER BY id LIMIT 1) AS variant_name,

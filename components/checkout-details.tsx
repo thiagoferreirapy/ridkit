@@ -1,0 +1,32 @@
+"use client";
+
+import { useState } from "react";
+import { validateCheckoutAddress,type CheckoutIdentity } from "@/lib/checkout-calculations";
+
+export type SavedCheckoutAddress={id:number;label:string;zip_code:string;street:string;number:string;complement?:string;district:string;city:string;state:string;is_default?:number;customer_id?:number};
+
+const input="mt-2 h-12 w-full rounded-xl border border-line px-4 text-base font-normal outline-none focus:border-accent";
+
+export function CheckoutIdentification({value,onChange}:{value:CheckoutIdentity;onChange:(value:CheckoutIdentity)=>void}){
+  const update=(key:keyof CheckoutIdentity,text:string)=>onChange({...value,[key]:text});
+  return <div className="grid gap-4 md:grid-cols-2">
+    <p className="text-sm text-muted md:col-span-2">Dados do cadastro preenchidos automaticamente. Confira ou corrija os dados usados neste pedido.</p>
+    <label className="text-sm font-semibold md:col-span-2">E-mail<input type="email" required autoComplete="email" value={value.email} onChange={event=>update("email",event.target.value)} className={input}/></label>
+    <label className="text-sm font-semibold">CPF<input required inputMode="numeric" autoComplete="off" value={value.cpf} onChange={event=>update("cpf",event.target.value)} className={input} placeholder="000.000.000-00"/></label>
+    <label className="text-sm font-semibold">Telefone com DDD<input required type="tel" autoComplete="tel" value={value.phone} onChange={event=>update("phone",event.target.value)} className={input} placeholder="(11) 99999-9999"/></label>
+  </div>;
+}
+
+export function CheckoutAddressSelection({addresses,selected,onSelect,authFetch,subtotal}:{addresses:SavedCheckoutAddress[];selected:SavedCheckoutAddress|null;onSelect:(value:SavedCheckoutAddress)=>void;authFetch:(url:string,init?:RequestInit)=>Promise<Response>;subtotal:number}){
+  const [adding,setAdding]=useState(false),[saved,setSaved]=useState<SavedCheckoutAddress|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(""),[cepStatus,setCepStatus]=useState("");
+  const [form,setForm]=useState({label:"Casa",zip_code:"",street:"",number:"",complement:"",district:"",city:"",state:""});
+  const all=saved&&addresses.every(item=>item.id!==saved.id)?[...addresses,saved]:addresses;
+  const change=(key:keyof typeof form,value:string)=>setForm(current=>({...current,[key]:value}));
+  const lookup=async()=>{const cep=form.zip_code.replace(/\D/g,"");if(cep.length!==8){setCepStatus("Informe os 8 dígitos do CEP.");return;}setCepStatus("Buscando CEP…");try{const response=await fetch(`/api/shipping/quote?cep=${cep}&subtotal=${subtotal}&method=standard`),body=await response.json();if(!response.ok)throw new Error(body.error||"CEP não encontrado");setForm(current=>({...current,...body.data.address,number:current.number,complement:current.complement||body.data.address.complement||""}));setCepStatus("CEP encontrado.");}catch(reason){setCepStatus(reason instanceof Error?reason.message:"Não foi possível consultar o CEP.");}};
+  const save=async()=>{setError("");const check=validateCheckoutAddress(form);if(!form.label.trim()||!check.valid||form.zip_code.replace(/\D/g,"").length!==8||!/^[A-Za-z]{2}$/.test(form.state)){setError("Preencha nome do endereço, CEP e todos os campos obrigatórios.");return;}setBusy(true);try{const response=await authFetch("/api/account",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...form,is_default:addresses.length===0})}),body=await response.json();if(!response.ok)throw new Error(body.error||"Não foi possível salvar o endereço");const address={...form,id:Number(body.data.id),is_default:addresses.length===0?1:0};setSaved(address);onSelect(address);setAdding(false);}catch(reason){setError(reason instanceof Error?reason.message:"Não foi possível salvar o endereço");}finally{setBusy(false);}};
+  return <div className="space-y-5"><div><h2 className="text-base font-semibold">Escolha um endereço</h2><p className="mt-1 text-sm text-muted">Os endereços salvos na sua conta aparecem aqui.</p></div>
+    {all.length>0&&<div className="grid gap-3">{all.map(address=><button type="button" key={address.id} aria-pressed={selected?.id===address.id} onClick={()=>{onSelect(address);setAdding(false);setError("");}} className={`rounded-xl border p-4 text-left text-sm ${selected?.id===address.id?"border-accent bg-accent-soft":"border-line hover:border-ink"}`}><span className="flex items-center justify-between gap-3"><b>{address.label}</b>{address.is_default===1&&<span className="text-xs text-muted">Principal</span>}</span><span className="mt-2 block text-muted">{address.street}, {address.number}{address.complement?` · ${address.complement}`:""} — {address.district}, {address.city}/{address.state} · CEP {address.zip_code}</span></button>)}</div>}
+    <button type="button" onClick={()=>{setAdding(value=>!value);setError("");}} className="min-h-11 rounded-xl border border-line px-4 text-sm font-semibold">{adding?"Cancelar novo endereço":"Adicionar novo endereço"}</button>
+    {adding&&<div className="grid gap-4 rounded-2xl border border-line bg-canvas p-4 md:grid-cols-2"><label className="text-sm font-semibold md:col-span-2">Nome do endereço<input value={form.label} onChange={event=>change("label",event.target.value)} className={input} placeholder="Casa ou trabalho"/></label><label className="text-sm font-semibold md:col-span-2">CEP<div className="flex gap-2"><input inputMode="numeric" value={form.zip_code} onChange={event=>change("zip_code",event.target.value)} onBlur={lookup} className={input} placeholder="00000-000"/><button type="button" onClick={lookup} className="mt-2 rounded-xl border border-line px-4 text-sm">Buscar</button></div>{cepStatus&&<span className="mt-1 block text-xs text-muted">{cepStatus}</span>}</label>{([["street","Rua"],["number","Número"],["complement","Complemento"],["district","Bairro"],["city","Cidade"],["state","UF"]] as [keyof typeof form,string][]).map(([key,label])=><label key={key} className={`text-sm font-semibold ${key==="street"?"md:col-span-2":""}`}>{label}<input value={form[key]} onChange={event=>change(key,event.target.value)} className={input}/></label>)}{error&&<p role="alert" className="text-sm text-danger md:col-span-2">{error}</p>}<button type="button" disabled={busy} onClick={save} className="min-h-12 rounded-xl bg-dark px-5 text-sm font-semibold text-white disabled:opacity-50 md:col-span-2">{busy?"Salvando…":"Salvar e usar este endereço"}</button></div>}
+  </div>;
+}

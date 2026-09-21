@@ -1,0 +1,53 @@
+import { expect,test } from "@playwright/test";
+
+test("checkout exige identificação e permite escolher endereço salvo",async({page})=>{
+  await page.goto("/login");
+  await page.getByRole("button",{name:"Entrar",exact:true}).last().click();
+  await expect(page).toHaveURL(/127\.0\.0\.1:3000\/$/);
+  await page.route("**/api/cart?**",async route=>{
+    const response=await route.fetch(),payload=await response.json();
+    payload.data.items=[{id:1,variant_id:1,product_id:1,name:"Produto de teste",size:"M",color:"Preto",price_cents:10000,quantity:1,total_cents:10000}];
+    payload.data.summary={items:1,subtotal_cents:10000,shipping_cents:0,total_cents:10000};
+    await route.fulfill({response,json:payload});
+  });
+  await page.route("**/api/account",async route=>{
+    if(route.request().method()==="POST")return route.fulfill({json:{data:{id:888888}}});
+    if(route.request().method()!=="GET")return route.continue();
+    const response=await route.fetch(),payload=await response.json();
+    payload.data.addresses.push({...payload.data.addresses[0],id:999999,label:"Trabalho",street:"Rua de Teste",number:"42",is_default:0});
+    await route.fulfill({response,json:payload});
+  });
+  await page.goto("/checkout/identificacao");
+  const email=page.getByRole("textbox",{name:"E-mail"});
+  await expect(email).toHaveValue("carlos-silva@example.com");
+  await email.fill("");
+  await page.getByRole("button",{name:"Continuar"}).click();
+  await expect(page.locator('p[role="alert"]')).toContainText("e-mail válido");
+  await email.fill("carlos-silva@example.com");
+  await page.getByRole("button",{name:"Continuar"}).click();
+  await expect(page).toHaveURL(/\/checkout\/endereco$/);
+  await page.getByRole("button",{name:/Trabalho/}).click();
+  await page.getByRole("button",{name:"Continuar"}).click();
+  await expect(page).toHaveURL(/\/checkout\/entrega$/);
+  expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem("ridekit-checkout-address")||"{}").id)).toBe(999999);
+  const progress=page.getByRole("navigation",{name:"Etapas do checkout"});
+  await progress.getByRole("link",{name:"Voltar para Endereço"}).click();
+  await expect(page).toHaveURL(/\/checkout\/endereco$/);
+  await expect(page.getByRole("button",{name:/Trabalho/})).toHaveAttribute("aria-pressed","true");
+  await progress.getByRole("link",{name:"Voltar para Identificação"}).click();
+  await expect(page).toHaveURL(/\/checkout\/identificacao$/);
+  await expect(page.getByRole("textbox",{name:"E-mail"})).toHaveValue("carlos-silva@example.com");
+  await page.getByRole("button",{name:"Continuar"}).click();
+  await expect(page).toHaveURL(/\/checkout\/endereco$/);
+  await page.route("**/api/shipping/quote?**",route=>route.fulfill({json:{data:{address:{zip_code:"01001000",street:"Praça da Sé",district:"Sé",city:"São Paulo",state:"SP"}}}}));
+  await page.goto("/checkout/endereco");
+  await page.getByRole("button",{name:"Adicionar novo endereço"}).click();
+  await page.getByRole("textbox",{name:"Nome do endereço"}).fill("Outro local");
+  await page.getByRole("textbox",{name:"CEP"}).fill("01001000");
+  await page.getByRole("button",{name:"Buscar"}).click();
+  await expect(page.getByRole("textbox",{name:"Rua"})).toHaveValue("Praça da Sé");
+  await page.getByRole("textbox",{name:"Número"}).fill("15");
+  await page.getByRole("button",{name:"Salvar e usar este endereço"}).click();
+  await expect(page.getByRole("button",{name:/Outro local/})).toHaveAttribute("aria-pressed","true");
+  expect(await page.evaluate(()=>JSON.parse(sessionStorage.getItem("ridekit-checkout-address")||"{}").id)).toBe(888888);
+});

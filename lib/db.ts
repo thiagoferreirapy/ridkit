@@ -30,6 +30,7 @@ export function getDb() {
     if (!productColumns.some(column => column.name === "seo_image_url")) db.exec("ALTER TABLE products ADD COLUMN seo_image_url TEXT");
     const orderColumns = db.prepare("PRAGMA table_info(orders)").all() as { name:string }[];
     if (!orderColumns.some(column => column.name === "shipping_rule_id")) db.exec("ALTER TABLE orders ADD COLUMN shipping_rule_id INTEGER");
+    if (!orderColumns.some(column => column.name === "checkout_contact_json")) db.exec("ALTER TABLE orders ADD COLUMN checkout_contact_json TEXT");
     if (!orderColumns.some(column => column.name === "shipping_rule_name")) db.exec("ALTER TABLE orders ADD COLUMN shipping_rule_name TEXT");
     if (!orderColumns.some(column => column.name === "payment_provider")) db.exec("ALTER TABLE orders ADD COLUMN payment_provider TEXT");
     if (!orderColumns.some(column => column.name === "provider_payment_id")) db.exec("ALTER TABLE orders ADD COLUMN provider_payment_id TEXT");
@@ -48,6 +49,15 @@ export function getDb() {
       db.exec("UPDATE customers SET email_verified_at=CURRENT_TIMESTAMP WHERE email_verified_at IS NULL");
     }
     if (!customerColumns.some(column => column.name === "asaas_customer_id")) db.exec("ALTER TABLE customers ADD COLUMN asaas_customer_id TEXT");
+    if (!customerColumns.some(column => column.name === "closed_at")) db.exec("ALTER TABLE customers ADD COLUMN closed_at TEXT");
+    const couponColumns = db.prepare("PRAGMA table_info(coupons)").all() as { name:string }[];
+    if (!couponColumns.some(column => column.name === "scope_type")) db.exec("ALTER TABLE coupons ADD COLUMN scope_type TEXT NOT NULL DEFAULT 'all' CHECK(scope_type IN ('all','category','product'))");
+    if (!couponColumns.some(column => column.name === "scope_value")) db.exec("ALTER TABLE coupons ADD COLUMN scope_value TEXT");
+    db.exec("CREATE TABLE IF NOT EXISTS customer_coupons (customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,redeemed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(customer_id,coupon_id)) STRICT");
+    db.exec("CREATE TABLE IF NOT EXISTS account_closures (id INTEGER PRIMARY KEY AUTOINCREMENT,customer_id INTEGER NOT NULL UNIQUE REFERENCES customers(id),protocol TEXT NOT NULL UNIQUE,closed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP) STRICT");
+    db.exec("CREATE TABLE IF NOT EXISTS legal_acceptances (id INTEGER PRIMARY KEY AUTOINCREMENT,customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,document_type TEXT NOT NULL CHECK(document_type IN ('terms','privacy')),version TEXT NOT NULL,context TEXT NOT NULL CHECK(context IN ('registration','checkout')),accepted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(customer_id,document_type,version,context)) STRICT");
+    db.exec("CREATE TABLE IF NOT EXISTS retention_runs (id INTEGER PRIMARY KEY AUTOINCREMENT,executed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,summary_json TEXT NOT NULL) STRICT");
+    db.exec("CREATE TABLE IF NOT EXISTS order_legal_acceptances (order_id INTEGER PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,customer_id INTEGER NOT NULL REFERENCES customers(id),terms_version TEXT NOT NULL,privacy_version TEXT NOT NULL,accepted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP) STRICT");
     const variantColumns = db.prepare("PRAGMA table_info(product_variants)").all() as { name:string }[];
     if (!variantColumns.some(column => column.name === "min_stock")) db.exec("ALTER TABLE product_variants ADD COLUMN min_stock INTEGER NOT NULL DEFAULT 0");
     db.exec("CREATE TABLE IF NOT EXISTS inventory_movements (id INTEGER PRIMARY KEY AUTOINCREMENT,variant_id INTEGER NOT NULL REFERENCES product_variants(id),order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,admin_id INTEGER REFERENCES admin_users(id) ON DELETE SET NULL,movement_type TEXT NOT NULL CHECK(movement_type IN ('entry','sale','reservation','release','adjustment','return')),quantity INTEGER NOT NULL,stock_after INTEGER,reserved_after INTEGER,reason TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP) STRICT");

@@ -4,9 +4,9 @@ import { useRouter } from "next/navigation";
 
 export type AuthUser={id:number;name:string;email:string};
 type Credentials={email:string;password:string};
-type Registration=Credentials&{name:string;phone?:string;cpf:string};
+type Registration=Credentials&{name:string;phone?:string;cpf:string;legal_version:string;accept_terms:true;acknowledge_privacy:true};
 type RegistrationResult={requiresVerification:boolean;email:string;emailSent:boolean};
-type AuthState={user:AuthUser|null;loading:boolean;login:(value:Credentials)=>Promise<void>;register:(value:Registration)=>Promise<RegistrationResult>;logout:()=>Promise<void>;authFetch:(url:string,init?:RequestInit)=>Promise<Response>};
+type AuthState={user:AuthUser|null;loading:boolean;login:(value:Credentials)=>Promise<void>;register:(value:Registration)=>Promise<RegistrationResult>;logout:()=>Promise<void>;finishAccountClosure:()=>void;authFetch:(url:string,init?:RequestInit)=>Promise<Response>};
 const AuthContext=createContext<AuthState|null>(null);
 
 async function payload(response:Response){const value=await response.json();if(!response.ok)throw new Error(value.error||"Não foi possível concluir a autenticação");return value.data;}
@@ -18,7 +18,8 @@ export function AuthProvider({children}:{children:React.ReactNode}){
   const login=async(value:Credentials)=>{const data=await payload(await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(value)}));setUser(data.user);sessionStorage.setItem("ridekit-auth-welcome",JSON.stringify({kind:"login",name:data.user.name}));router.push("/");router.refresh();};
   const register=async(value:Registration)=>{const data=await payload(await fetch("/api/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(value)}));return {requiresVerification:Boolean(data.requires_verification),email:String(data.email),emailSent:Boolean(data.email_sent)};};
   const logout=async()=>{await fetch("/api/auth/logout",{method:"POST"});setUser(null);router.push("/login");router.refresh();};
+  const finishAccountClosure=()=>{setUser(null);localStorage.removeItem("ridekit-session-id");router.refresh();};
   const authFetch=async(url:string,init?:RequestInit)=>{const response=await fetchWithRefresh(url,init);if(response.status===401)setUser(null);return response;};
-  return <AuthContext.Provider value={{user,loading,login,register,logout,authFetch}}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{user,loading,login,register,logout,finishAccountClosure,authFetch}}>{children}</AuthContext.Provider>;
 }
 export function useAuth(){const value=useContext(AuthContext);if(!value)throw new Error("useAuth deve ser usado dentro de AuthProvider");return value;}

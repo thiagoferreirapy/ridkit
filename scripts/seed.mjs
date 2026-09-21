@@ -67,13 +67,14 @@ function slug(value) { return value.toLowerCase().normalize("NFD").replace(/[\u0
 
 db.exec("BEGIN IMMEDIATE");
 try {
-  for (const table of ["reviews","order_events","order_items","orders","search_history","favorite_items","cart_items","carts","addresses","refresh_tokens","customers","admin_refresh_tokens","admin_users","coupons","product_variants","product_images","products","hero_slides","categories","brands"]) db.exec(`DELETE FROM ${table}`);
+  for (const table of ["reviews","order_events","order_items","orders","search_history","favorite_items","cart_items","carts","addresses","refresh_tokens","customer_coupons","customers","admin_refresh_tokens","admin_users","coupons","product_variants","product_images","products","hero_slides","categories","brands"]) db.exec(`DELETE FROM ${table}`);
   db.exec("DELETE FROM sqlite_sequence");
 
   const brandInsert = db.prepare("INSERT INTO brands(name,slug,country,description) VALUES(?,?,?,?)");
   const brandIds = brands.map(([name, brandSlug, country]) => id(brandInsert.run(name, brandSlug, country, `${name}: tecnologia e proteção selecionadas pela Ridekit.`)));
   const categoryInsert = db.prepare("INSERT INTO categories(name,slug,description,image_url) VALUES(?,?,?,?)");
   const categoryIds = categories.map(([name, categorySlug], i) => id(categoryInsert.run(name, categorySlug, `Seleção de ${name.toLowerCase()} para diferentes estilos de pilotagem.`, image(photos[i % photos.length][0]))));
+  const glovesCategoryId=id(db.prepare("INSERT INTO categories(parent_id,name,slug,description,variation_type,variation_label) VALUES(?,'Luvas','luvas','Luvas para pilotagem com proteção e conforto.','size','Tamanho')").run(categoryIds[5]));
 
   const heroInsert = db.prepare("INSERT INTO hero_slides(badge,title,description,image_url,mobile_image_url,cta_label,cta_url,secondary_label,secondary_url,sort_order,active) VALUES(?,?,?,?,?,?,?,?,?,?,1)");
   [
@@ -98,6 +99,7 @@ try {
     const sizes = accessory ? ["Único"] : ["56 / S", "58 / M", "60 / L", "62 / XL"];
     for (let s = 0; s < sizes.length; s++) variantInsert.run(productId, `RK-${String(i + 1).padStart(4,"0")}-${s + 1}`, sizes[s], colors[i % colors.length], (i * 7 + s * 3) % 22, s % 2, price);
   }
+  db.prepare("UPDATE products SET category_id=? WHERE lower(name) LIKE 'luva%'").run(glovesCategoryId);
   db.prepare(`UPDATE products SET is_new=1,launch_starts_at=datetime('now','-1 day'),launch_ends_at=datetime('now','+45 days') WHERE id IN (${productIds.slice(-8).map(()=>"?").join(",")})`).run(...productIds.slice(-8));
 
   const customerInsert = db.prepare("INSERT INTO customers(name,email,cpf,phone,password_hash) VALUES(?,?,?,?,?)");

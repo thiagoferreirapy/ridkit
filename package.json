@@ -17,7 +17,9 @@
     "test:lighthouse": "node scripts/lighthouse.mjs",
     "db:seed": "node scripts/seed.mjs",
     "db:reset": "node scripts/seed.mjs",
-    "backup": "node scripts/backup.mjs"
+    "backup": "node scripts/backup.mjs",
+    "retention:preview": "node scripts/retention.mjs",
+    "retention:apply": "node scripts/retention.mjs --apply"
   },
   "dependencies": {
     "lucide-react": "latest",

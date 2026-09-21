@@ -26,6 +26,8 @@ export const adminProductPatchSchema = productPatchSchema.extend({
 });
 
 export const orderSchema = z.object({
+  legal_version: z.string(), accept_terms: z.literal(true), acknowledge_privacy: z.literal(true),
+  checkout_identity:z.object({email:z.string().trim().email().max(160),cpf:z.string().regex(/^\d{11}$/),phone:z.string().regex(/^\d{10,11}$/)}),
   idempotency_key: z.string().uuid().optional(),
   coupon_code: z.string().trim().optional(),
   payment_method: z.literal("pix"), shipping_method: z.enum(["Econômica","Expressa","Retirada"]),

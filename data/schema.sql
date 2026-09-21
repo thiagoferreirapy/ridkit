@@ -103,7 +103,31 @@ CREATE TABLE IF NOT EXISTS customers (
   asaas_customer_id TEXT UNIQUE,
   password_hash TEXT,
   email_verified_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  closed_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS account_closures (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  customer_id INTEGER NOT NULL UNIQUE REFERENCES customers(id),
+  protocol TEXT NOT NULL UNIQUE,
+  closed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS legal_acceptances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  document_type TEXT NOT NULL CHECK(document_type IN ('terms','privacy')),
+  version TEXT NOT NULL,
+  context TEXT NOT NULL CHECK(context IN ('registration','checkout')),
+  accepted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(customer_id, document_type, version, context)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS retention_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  executed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  summary_json TEXT NOT NULL
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
@@ -160,6 +184,8 @@ CREATE TABLE IF NOT EXISTS coupons (
   discount_type TEXT NOT NULL CHECK(discount_type IN ('percent','fixed','shipping')),
   discount_value INTEGER NOT NULL DEFAULT 0,
   min_order_cents INTEGER NOT NULL DEFAULT 0,
+  scope_type TEXT NOT NULL DEFAULT 'all' CHECK(scope_type IN ('all','category','product')),
+  scope_value TEXT,
   usage_limit INTEGER,
   used_count INTEGER NOT NULL DEFAULT 0,
   starts_at TEXT,
@@ -218,6 +244,7 @@ CREATE TABLE IF NOT EXISTS orders (
   total_cents INTEGER NOT NULL,
   shipping_method TEXT NOT NULL,
   shipping_address_json TEXT NOT NULL,
+  checkout_contact_json TEXT,
   tracking_code TEXT,
   payment_provider TEXT,
   provider_payment_id TEXT UNIQUE,
@@ -227,6 +254,21 @@ CREATE TABLE IF NOT EXISTS orders (
   payment_updated_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS customer_coupons (
+  customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
+  redeemed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(customer_id,coupon_id)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS order_legal_acceptances (
+  order_id INTEGER PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,
+  customer_id INTEGER NOT NULL REFERENCES customers(id),
+  terms_version TEXT NOT NULL,
+  privacy_version TEXT NOT NULL,
+  accepted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS product_attributes (

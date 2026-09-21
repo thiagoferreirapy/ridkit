@@ -86,6 +86,7 @@ export const configs: Record<
       ["name", "Nome", (v) => v],
       ["slug", "Slug", (v) => v],
       ["description", "Descrição", (v) => v || "—"],
+      ["scope_type", "Aplicação", (v, i) => v === "all" ? "Toda a loja" : `${v === "category" ? "Categoria" : "Produto"}: ${i.scope_value || "não definido"}`],
       ["active", "Status", (v) => (v ? "Ativa" : "Inativa")],
     ],
     fields: [
@@ -172,9 +173,11 @@ export const configs: Record<
       },
       {
         name: "min_order_cents",
-        label: "Pedido mínimo (centavos)",
+        label: "Mínimo em produtos elegíveis (centavos)",
         type: "number",
       },
+      { name: "scope_type", label: "Aplicar em", type: "select", options: [["all", "Toda a loja"], ["category", "Categoria e subcategorias"], ["product", "Produto específico"]] },
+      { name: "scope_value", label: "Slug da categoria ou produto (vazio para toda a loja)" },
       { name: "usage_limit", label: "Limite de usos", type: "number" },
       { name: "starts_at", label: "Início", type: "datetime-local" },
       { name: "ends_at", label: "Fim", type: "datetime-local" },
