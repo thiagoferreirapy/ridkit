@@ -549,7 +549,7 @@ export function AdminResource({ label }: { label: string }) {
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4">
           <form
             onSubmit={submit}
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-lg"
           >
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">

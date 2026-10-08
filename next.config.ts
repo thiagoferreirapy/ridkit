@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
     "192.168.15.9",
     "192.168.218.25",
     "172.17.18.92",
+    "192.168.*.*",
+    "10.*.*.*",
+    "172.*.*.*",
   ],
   async headers() {
     return [{source:"/:path*",headers:[

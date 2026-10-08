@@ -78,9 +78,9 @@ try {
 
   const heroInsert = db.prepare("INSERT INTO hero_slides(badge,title,description,image_url,mobile_image_url,cta_label,cta_url,secondary_label,secondary_url,sort_order,active) VALUES(?,?,?,?,?,?,?,?,?,?,1)");
   [
-    ["Seleção Ridekit","Proteção para cada rota.","Capacetes, equipamentos e acessórios com procedência, garantia e suporte especializado.",image(photos[1][0],1600),image(photos[1][0],900),"Ver capacetes","/capacetes","Ofertas da semana","/ofertas",0],
-    ["Frete e condições","Seu próximo equipamento começa aqui.","Frete grátis acima de R$ 299, parcelamento em até 10x e 5% de desconto no Pix.",image(photos[2][0],1600),image(photos[2][0],900),"Explorar a loja","/capacetes","Guia de tamanho","/guia-de-tamanho",1],
-    ["Novidades","Pilotagem com mais confiança.","Encontre o tamanho certo, acompanhe seu pedido e conte com atendimento humano quando precisar.",image(photos[0][0],1600),image(photos[0][0],900),"Conhecer produtos","/capacetes",null,null,2],
+    ["Capacetes","Capacetes com entrega para todo o Brasil","Produto original, nota fiscal e troca em até 7 dias. Parcele em até 10x sem juros.",image(photos[1][0],1600),image(photos[1][0],900),"Ver capacetes","/capacetes","Ver ofertas","/ofertas",0],
+    ["Frete grátis","Frete grátis nas compras acima de R$ 299","Pague no Pix com 5% de desconto ou parcele no cartão em até 10x sem juros.",image(photos[2][0],1600),image(photos[2][0],900),"Aproveitar","/capacetes","Guia de tamanho","/guia-de-tamanho",1],
+    ["Lançamentos","Novos modelos chegaram","Confira os capacetes e acessórios que acabaram de entrar no catálogo.",image(photos[0][0],1600),image(photos[0][0],900),"Ver lançamentos","/lancamentos",null,null,2],
   ].forEach(slide => heroInsert.run(...slide));
 
   db.exec("UPDATE categories SET variation_type='size',variation_label='Tamanho' WHERE slug IN ('fechados','articulados','abertos','off-road')");
