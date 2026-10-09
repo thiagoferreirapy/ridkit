@@ -457,7 +457,7 @@ export function AdminResource({ label }: { label: string }) {
             setEditing(null);
             setOpen(true);
           }}
-          className={`${button} bg-dark text-white`}
+          className={`${button} bg-accent text-white hover:bg-accent-strong`}
         >
           <Plus size={16} />
           Novo registro
@@ -553,7 +553,7 @@ export function AdminResource({ label }: { label: string }) {
           >
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">
-                {editing ? "Editar" : "Novo"} {config.title.toLowerCase()}
+                {editing ? "Editar" : "Novo registro"} · {config.title}
               </h2>
               <button type="button" onClick={() => setOpen(false)}>
                 <X />
@@ -645,7 +645,7 @@ export function AdminProducts() {
         </div>
         <button
           onClick={() => list.load(search)}
-          className={`${button} bg-dark text-white`}
+          className={`${button} bg-accent text-white hover:bg-accent-strong`}
         >
           Buscar
         </button>
@@ -779,7 +779,7 @@ export function AdminInventory() {
             mínimo aparecem destacados.
           </p>
         </div>
-        <button disabled={saving===-1} onClick={expireReservations} className={`${button} bg-dark text-white`}>
+        <button disabled={saving===-1} onClick={expireReservations} className={`${button} bg-accent text-white hover:bg-accent-strong`}>
           <RefreshCw size={15}/>{saving===-1?"Processando…":"Liberar reservas expiradas"}
         </button>
       </div>
@@ -835,7 +835,7 @@ export function AdminInventory() {
               <button
                 disabled={saving === item.id}
                 onClick={() => update(item)}
-                className={`${button} bg-dark text-white`}
+                className={`${button} bg-accent text-white hover:bg-accent-strong`}
               >
                 Salvar
               </button>
@@ -1203,7 +1203,7 @@ export function AdminSettings() {
               <option value="manager">Gerente</option>
               <option value="admin">Administrador</option>
             </select>
-            <button className={`${button} bg-dark text-white md:col-span-2`}>
+            <button className={`${button} bg-accent text-white hover:bg-accent-strong md:col-span-2`}>
               <Plus size={16} />
               Cadastrar
             </button>

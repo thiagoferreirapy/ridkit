@@ -36,7 +36,7 @@ export const adminSections = [
 ];
 
 export const routeMap = [
-  ["/", "Home"], ["/capacetes", "Categoria / PLP"], ["/produto/ls2-ff358-pro", "Produto / PDP"],
+  ["/", "Home"], ["/capacetes", "Categoria / PLP"], ["/produto/ls2-ff358-pro-mono", "Produto / PDP"],
   ["/marcas", "Marcas"], ["/marcas/ls2", "Landing LS2"], ["/ofertas", "Ofertas"],
   ["/carrinho", "Carrinho"], ["/login", "Entrar e cadastrar"],
   ["/checkout", "Carrinho revisado"], ["/checkout/identificacao", "Identificação"],
