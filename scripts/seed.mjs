@@ -3,22 +3,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes, scryptSync } from "node:crypto";
+import { initializeDatabase } from "../lib/db.ts";
+
+if (process.env.NODE_ENV === "production" && !process.argv.includes("--force")) {
+  console.error("db:seed apaga clientes, pedidos e catálogo. Recusado com NODE_ENV=production (use --force se for intencional).");
+  process.exit(1);
+}
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const dbPath = process.env.DATABASE_PATH || path.join(root, "data", "ridekit.sqlite");
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 const db = new DatabaseSync(dbPath, { timeout: 5000 });
-db.exec(fs.readFileSync(path.join(root, "data", "schema.sql"), "utf8"));
-const categoryColumns=db.prepare("PRAGMA table_info(categories)").all();
-if(!categoryColumns.some(column=>column.name==="variation_type"))db.exec("ALTER TABLE categories ADD COLUMN variation_type TEXT NOT NULL DEFAULT 'none' CHECK(variation_type IN ('none','size','option'))");
-if(!categoryColumns.some(column=>column.name==="variation_label"))db.exec("ALTER TABLE categories ADD COLUMN variation_label TEXT");
-const productColumns=db.prepare("PRAGMA table_info(products)").all();
-if(!productColumns.some(column=>column.name==="is_new"))db.exec("ALTER TABLE products ADD COLUMN is_new INTEGER NOT NULL DEFAULT 0 CHECK(is_new IN (0,1))");
-if(!productColumns.some(column=>column.name==="launch_starts_at"))db.exec("ALTER TABLE products ADD COLUMN launch_starts_at TEXT");
-if(!productColumns.some(column=>column.name==="launch_ends_at"))db.exec("ALTER TABLE products ADD COLUMN launch_ends_at TEXT");
-if(!productColumns.some(column=>column.name==="offer_starts_at"))db.exec("ALTER TABLE products ADD COLUMN offer_starts_at TEXT");
-if(!productColumns.some(column=>column.name==="offer_ends_at"))db.exec("ALTER TABLE products ADD COLUMN offer_ends_at TEXT");
+initializeDatabase(db, path.join(root, "data", "schema.sql"));
 
 const image = (id, w = 1200) => `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=82`;
 const photos = [
@@ -67,7 +64,8 @@ function slug(value) { return value.toLowerCase().normalize("NFD").replace(/[\u0
 
 db.exec("BEGIN IMMEDIATE");
 try {
-  for (const table of ["reviews","order_events","order_items","orders","search_history","favorite_items","cart_items","carts","addresses","refresh_tokens","customer_coupons","customers","admin_refresh_tokens","admin_users","coupons","product_variants","product_images","products","hero_slides","categories","brands"]) db.exec(`DELETE FROM ${table}`);
+  // Children before parents: several of these tables reference others without ON DELETE CASCADE.
+  for (const table of ["review_images","reviews","inventory_movements","order_legal_acceptances","order_events","order_items","payment_webhook_events","orders","whatsapp_requests","search_history","favorite_items","cart_items","carts","addresses","refresh_tokens","password_reset_tokens","email_verification_tokens","legal_acceptances","account_closures","customer_coupons","customers","admin_audit_logs","admin_refresh_tokens","admin_users","coupons","product_attributes","product_variants","product_images","products","hero_slides","category_size_chart","categories","brands"]) db.exec(`DELETE FROM ${table}`);
   db.exec("DELETE FROM sqlite_sequence");
 
   const brandInsert = db.prepare("INSERT INTO brands(name,slug,country,description) VALUES(?,?,?,?)");

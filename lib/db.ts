@@ -10,7 +10,15 @@ export function getDb() {
   if (!globalDb.ridekitDb) {
     fs.mkdirSync(path.dirname(databasePath), { recursive: true });
     const db = new DatabaseSync(databasePath, { timeout: 5000 });
-    db.exec(fs.readFileSync(path.join(process.cwd(), "data", "schema.sql"), "utf8"));
+    initializeDatabase(db);
+    globalDb.ridekitDb = db;
+  }
+  return globalDb.ridekitDb;
+}
+
+// Shared by the app, scripts and tests so every entry point sees the same schema.
+export function initializeDatabase(db: DatabaseSync, schemaPath = path.join(process.cwd(), "data", "schema.sql")) {
+    db.exec(fs.readFileSync(schemaPath, "utf8"));
     const categoryColumns = db.prepare("PRAGMA table_info(categories)").all() as { name:string }[];
     if (!categoryColumns.some(column => column.name === "variation_type")) db.exec("ALTER TABLE categories ADD COLUMN variation_type TEXT NOT NULL DEFAULT 'none' CHECK(variation_type IN ('none','size','option'))");
     if (!categoryColumns.some(column => column.name === "variation_label")) db.exec("ALTER TABLE categories ADD COLUMN variation_label TEXT");
@@ -72,9 +80,7 @@ export function getDb() {
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_idempotency ON orders(customer_id,idempotency_key) WHERE idempotency_key IS NOT NULL");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_provider_payment_id ON orders(provider_payment_id) WHERE provider_payment_id IS NOT NULL");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_asaas_customer_id ON customers(asaas_customer_id) WHERE asaas_customer_id IS NOT NULL");
-    globalDb.ridekitDb = db;
-  }
-  return globalDb.ridekitDb;
+    return db;
 }
 
 export function rows<T>(sql: string, ...params: (string | number | null)[]) {

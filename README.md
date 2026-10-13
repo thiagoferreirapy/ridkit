@@ -13,21 +13,26 @@ Responsive e-commerce implementation based on the supplied Figma design system.
 
 ## Run locally
 
+Requires Node 24 (see `.nvmrc`) and pnpm (`corepack enable` installs the version pinned in `package.json`).
+
 ```bash
-npm install
-npm run db:seed
-npm run dev
+pnpm install
+pnpm db:seed
+pnpm dev
 ```
 
 Open `http://localhost:3000`. The visual route inventory is at `/mapa`; API documentation is in [API.md](./API.md).
 
 ## Commands
 
-- `npm run dev` — development server
-- `npm run build` — production build
-- `npm run lint` — TypeScript validation
-- `npm test` — smoke tests against a running server
-- `npm run db:seed` — create/reset the populated SQLite database
+- `pnpm dev` — development server
+- `pnpm build` — production build
+- `pnpm lint` — TypeScript + ESLint
+- `pnpm test:unit` — unit/integration tests (in-memory SQLite)
+- `pnpm test` — smoke tests against a running server
+- `pnpm db:seed` — create/reset the populated SQLite database (refuses to run with `NODE_ENV=production`)
+- `pnpm backup` — consistent snapshot of the database (`VACUUM INTO`) and `public/uploads` into `backups/`
+- `pnpm retention:preview` / `pnpm retention:apply` — see [docs/retention.md](./docs/retention.md)
 
 ## Optional integrations
 

@@ -10,7 +10,7 @@ type AuthState={user:AuthUser|null;loading:boolean;login:(value:Credentials)=>Pr
 const AuthContext=createContext<AuthState|null>(null);
 
 async function payload(response:Response){const value=await response.json();if(!response.ok)throw new Error(value.error||"Não foi possível concluir a autenticação");return value.data;}
-export async function fetchWithRefresh(url:string,init?:RequestInit){let response=await fetch(url,init);if(response.status!==401||url.includes("/api/auth/"))return response;const refreshed=await fetch("/api/auth/refresh",{method:"POST"});if(!refreshed.ok)return response;return fetch(url,init);}
+export async function fetchWithRefresh(url:string,init?:RequestInit){const response=await fetch(url,init);if(response.status!==401||url.includes("/api/auth/"))return response;const refreshed=await fetch("/api/auth/refresh",{method:"POST"});if(!refreshed.ok)return response;return fetch(url,init);}
 
 export function AuthProvider({children}:{children:React.ReactNode}){
   const router=useRouter();const [user,setUser]=useState<AuthUser|null>(null);const [loading,setLoading]=useState(true);

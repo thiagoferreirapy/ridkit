@@ -1,13 +1,14 @@
 import { DatabaseSync } from "node:sqlite";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { initializeDatabase } from "../lib/db.ts";
 
 const databasePath=process.env.DATABASE_PATH||path.join(process.cwd(),"data","ridekit.sqlite");
 const apply=process.argv.includes("--apply");
 if(!existsSync(databasePath)){console.error(`Banco não encontrado: ${databasePath}`);process.exit(1);}
 
 const db=new DatabaseSync(databasePath,{timeout:5000});
-db.exec("PRAGMA foreign_keys=ON");
+initializeDatabase(db);
 const rules=[
   {name:"password_reset_tokens",days:30,where:"(used_at IS NOT NULL OR datetime(expires_at)<datetime('now'))",date:"expires_at"},
   {name:"email_verification_tokens",days:30,where:"(used_at IS NOT NULL OR datetime(expires_at)<datetime('now'))",date:"expires_at"},
@@ -27,7 +28,6 @@ try{
     if(apply&&count)db.prepare(`DELETE FROM ${rule.name} WHERE ${predicate}`).run(cutoff);
   }
   if(apply){
-    db.exec("CREATE TABLE IF NOT EXISTS retention_runs (id INTEGER PRIMARY KEY AUTOINCREMENT,executed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,summary_json TEXT NOT NULL) STRICT");
     db.prepare("INSERT INTO retention_runs(summary_json) VALUES(?)").run(JSON.stringify(summary));
     db.exec("COMMIT");
   }else db.exec("ROLLBACK");
