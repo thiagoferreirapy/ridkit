@@ -58,6 +58,7 @@ test("código TOTP não pode ser reutilizado",()=>{
 });
 
 test("limite por conta não é burlado trocando X-Forwarded-For",()=>{
+  delete process.env.E2E_RATE_LIMIT_SCALE;
   const email=`vitima-${Math.random()}@example.com`;
   for(let attempt=0;attempt<3;attempt++){
     const request=new Request("http://localhost/api/auth/login",{headers:{"x-forwarded-for":`10.0.0.${attempt}`}});
