@@ -7,8 +7,11 @@
   --color-ink: #1f1f1f;
   --color-muted: #6a6a6a;
   --color-line: #e0e0e0;
-  --color-accent: #f28000;
-  --color-accent-strong: #d97200;
+  /* Text and buttons: #a65200 keeps 5.5:1 on white and 5:1 on canvas (WCAG AA). The original
+     #f28000 (2.7:1) stays only for decorative fills via accent-bright. */
+  --color-accent: #a65200;
+  --color-accent-strong: #8c4500;
+  --color-accent-bright: #f28000;
   --color-accent-soft: #fff3e6;
   --color-brand: #6e0ad6;
   --color-brand-soft: #f3ebfc;
@@ -26,13 +29,13 @@
 html { scroll-behavior: smooth; }
 body { margin: 0; background: #f5f5f5; color: #1f1f1f; font-family: var(--font-nunito), "Nunito Sans", ui-sans-serif, system-ui, sans-serif; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
 button, a { -webkit-tap-highlight-color: transparent; }
-::selection { background: #f28000; color: white; }
+::selection { background: #a65200; color: white; }
 
 .container-page { width: min(1312px, calc(100% - 32px)); margin-inline: auto; }
 .card { border: 1px solid #e0e0e0; background: white; border-radius: 8px; }
 .card-hover { transition: box-shadow .15s ease, border-color .15s ease; }
 .card-hover:hover { box-shadow: 0 2px 8px rgba(0,0,0,.12); border-color: #d0d0d0; }
-.focus-ring:focus-visible { outline: 2px solid #f28000; outline-offset: 2px; }
+.focus-ring:focus-visible { outline: 2px solid #a65200; outline-offset: 2px; }
 .hide-scrollbar { scrollbar-width: none; }
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

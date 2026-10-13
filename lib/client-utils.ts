@@ -20,6 +20,11 @@ export async function copyText(text: string) {
   try { return document.execCommand("copy"); } catch { return false; } finally { area.remove(); }
 }
 
+// Only same-origin paths are accepted as a post-login destination ("//evil.com" and "/\evil.com" are other hosts).
+export function safeNextPath(value: string | null | undefined, fallback = "/") {
+  return value && /^\/(?![/\\])/.test(value) ? value : fallback;
+}
+
 // One idempotency key per distinct checkout payload: retrying the same cart reuses it, changing anything gets a new one.
 export function checkoutKey(payload: unknown) {
   const fingerprint = JSON.stringify(payload);

@@ -5,6 +5,7 @@ import { linkTarget,imageLocation } from "../lib/schemas.ts";
 import { parseStoreDate,STORE_NOW_SQL } from "../lib/store-time.ts";
 import { consumeTotp,createTotpSecret,totp } from "../lib/two-factor.ts";
 import { assertRateLimit,assertRateLimitFor } from "../lib/rate-limit.ts";
+import { safeNextPath } from "../lib/client-utils.ts";
 import { activeCustomerCoupons,redeemCoupon } from "../lib/coupons.ts";
 import { insertCustomer,testDb } from "./helpers/db.ts";
 
@@ -63,4 +64,9 @@ test("limite por conta não é burlado trocando X-Forwarded-For",()=>{
     assertRateLimit(request,"test-login",100);assertRateLimitFor("test-login",email,3,60_000);
   }
   assert.throws(()=>assertRateLimitFor("test-login",email,3,60_000),/TOO_MANY_REQUESTS/);
+});
+
+test("destino pós-login só aceita caminho interno",()=>{
+  assert.equal(safeNextPath("/checkout/identificacao"),"/checkout/identificacao");
+  for(const value of ["//evil.example","/\\evil.example","https://evil.example","javascript:alert(1)","",null])assert.equal(safeNextPath(value),"/",String(value));
 });

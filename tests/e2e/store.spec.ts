@@ -26,7 +26,7 @@ test("WhatsApp adiciona uma ação sem substituir o carrinho",async({page})=>{
   await expect.poll(async()=>{
     const href=await whatsapp.getAttribute("href");
     return new URL(href!).searchParams.get("text")||"";
-  }).toContain("Link do produto: http://127.0.0.1:3000/produto/");
+  }).toContain(`Link do produto: ${new URL(page.url()).origin}/produto/`);
   const message=new URL((await whatsapp.getAttribute("href"))!).searchParams.get("text")||"";
   expect(message).toContain("*Produto:");
   expect(message).toContain("Marca:");
@@ -66,11 +66,13 @@ test("menu mobile e carrinho abrem e fecham com transição lateral",async({page
   await expect(cart).toHaveCount(0);
 });
 
-test("páginas públicas não têm violações críticas de acessibilidade",async({page})=>{
+test("páginas públicas não têm violações graves de acessibilidade",async({page})=>{
   for(const path of ["/","/capacetes","/login"]){
     await page.goto(path);
-    const results=await new AxeBuilder({page}).disableRules(["color-contrast"]).analyze();
-    expect(results.violations.filter(item=>item.impact==="critical")).toEqual([]);
+    await page.waitForLoadState("networkidle");
+    const results=await new AxeBuilder({page}).analyze();
+    const blocking=results.violations.filter(item=>item.impact==="critical"||item.impact==="serious").map(item=>({path,id:item.id,nodes:item.nodes.slice(0,3).map(node=>node.target.join(" "))}));
+    expect(blocking).toEqual([]);
   }
 });
 

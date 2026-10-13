@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     if (featured === "1") where.push("p.featured = 1");
     if (offer === "1") where.push(`p.compare_at_cents IS NOT NULL AND p.compare_at_cents > p.price_cents AND (p.offer_starts_at IS NULL OR datetime(p.offer_starts_at)<=${STORE_NOW_SQL}) AND (p.offer_ends_at IS NULL OR datetime(p.offer_ends_at)>=${STORE_NOW_SQL})`);
     if (newest === "1") where.push(`p.is_new=1 AND (p.launch_starts_at IS NULL OR datetime(p.launch_starts_at)<=${STORE_NOW_SQL}) AND (p.launch_ends_at IS NULL OR datetime(p.launch_ends_at)>=${STORE_NOW_SQL})`);
-    const sortMap:Record<string,string>={price_asc:"p.price_cents ASC",price_desc:"p.price_cents DESC",rating:"p.rating DESC",newest:"p.created_at DESC"};
+    const sortMap:Record<string,string>={price_asc:"p.price_cents ASC",price_desc:"p.price_cents DESC",rating:"p.rating DESC",newest:"p.created_at DESC",best_selling:"(SELECT COALESCE(SUM(oi.quantity),0) FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE oi.product_id=p.id AND o.status IN ('paid','preparing','shipped','delivered')) DESC,p.featured DESC,p.id ASC"};
     const order = newest === "1" ? "p.created_at DESC,p.id DESC" : sortMap[url.searchParams.get("sort")||""] || "p.featured DESC, p.id ASC";
     const db=getDb(); const whereSql=where.join(" AND ");
     const total=Number((db.prepare(`SELECT COUNT(*) AS count FROM products p JOIN brands b ON b.id=p.brand_id JOIN categories c ON c.id=p.category_id WHERE ${whereSql}`).get(...params) as {count:number}).count);

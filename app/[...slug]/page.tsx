@@ -1,6 +1,8 @@
 import { StorePage } from "@/components/pages";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { getDb } from "@/lib/db";
+import { isKnownStorePath } from "@/lib/store-routes";
 
 export async function generateMetadata({params}:{params:Promise<{slug:string[]}>}):Promise<Metadata>{
   const {slug}=await params,path=`/${slug.join("/")}`,db=getDb();
@@ -9,7 +11,18 @@ export async function generateMetadata({params}:{params:Promise<{slug:string[]}>
   const titles:Record<string,string>={capacetes:"Produtos",ofertas:"Ofertas",lancamentos:"Lançamentos",categorias:"Categorias",marcas:"Marcas",conta:"Minha conta",checkout:"Checkout"};const title=titles[slug[0]];return title?{title,alternates:{canonical:path},robots:["conta","checkout","admin"].includes(slug[0])?{index:false,follow:false}:undefined}:{};
 }
 
+// Unknown URLs, unpublished products and unknown brands answer with a real 404 instead of a 200 page.
+function exists(slug:string[]){
+  const path=`/${slug.join("/")}`;
+  if(!isKnownStorePath(path))return false;
+  const db=getDb();
+  if(slug[0]==="produto")return slug.length===2&&Boolean(db.prepare("SELECT 1 FROM products WHERE slug=? AND active=1 AND publication_status='active'").get(slug[1]));
+  if(slug[0]==="marcas"&&slug[1])return slug.length===2&&Boolean(db.prepare("SELECT 1 FROM brands WHERE slug=? AND active=1").get(slug[1]));
+  return true;
+}
+
 export default async function Page({ params }: { params: Promise<{ slug: string[] }> }) {
   const { slug } = await params;
+  if(!exists(slug))notFound();
   return <StorePage path={`/${slug.join("/")}`} />;
 }

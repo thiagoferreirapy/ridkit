@@ -2,8 +2,10 @@ import { expect,test } from "@playwright/test";
 
 test("checkout exige identificação e permite escolher endereço salvo",async({page})=>{
   await page.goto("/login");
+  await page.getByRole("textbox",{name:/E-mail/}).fill(process.env.E2E_CUSTOMER_EMAIL||"carlos-silva@example.com");
+  await page.getByRole("textbox",{name:/Senha/}).first().fill(process.env.E2E_CUSTOMER_PASSWORD||"Ridekit123!");
   await page.getByRole("button",{name:"Entrar",exact:true}).last().click();
-  await expect(page).toHaveURL(/127\.0\.0\.1:3000\/$/);
+  await expect(page).toHaveURL(url=>url.pathname==="/");
   await page.route("**/api/cart?**",async route=>{
     const response=await route.fetch(),payload=await response.json();
     payload.data.items=[{id:1,variant_id:1,product_id:1,name:"Produto de teste",size:"M",color:"Preto",price_cents:10000,quantity:1,total_cents:10000}];
