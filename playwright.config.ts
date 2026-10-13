@@ -8,6 +8,9 @@ const baseURL=externalServer||"http://127.0.0.1:3000";
 export default defineConfig({
   testDir:"./tests/e2e",
   timeout:30_000,
+  // One retry in CI absorbs cold-start timing; retried tests are still reported as "flaky".
+  retries:process.env.CI?1:0,
+  reporter:process.env.CI?[["list"],["html",{open:"never"}]]:"list",
   use:{baseURL,trace:"retain-on-failure"},
   webServer:externalServer?undefined:{command:"pnpm dev",url:baseURL,reuseExistingServer:true,timeout:120_000},
   projects:[

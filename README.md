@@ -40,7 +40,7 @@ Demo accounts after `db:seed`: customer `carlos-silva@example.com` / `Ridekit123
 | `pnpm backup` | Consistent snapshot of the database (`VACUUM INTO`) and `public/uploads` into `backups/` |
 | `pnpm retention:preview` / `pnpm retention:apply` | Data retention routine, see [docs/retention.md](./docs/retention.md) |
 
-The e2e order-flow test also needs `ASAAS_WEBHOOK_TOKEN` set to the same value as the server; CI does this.
+The e2e order-flow test also needs `ASAAS_WEBHOOK_TOKEN` set to the same value as the server. Start the server under test with `E2E_RATE_LIMIT_SCALE=20` when running the suite repeatedly: it reuses the seeded accounts, and the per-account login limits would otherwise kick in (never set it in production). CI does both.
 
 ## Environment
 

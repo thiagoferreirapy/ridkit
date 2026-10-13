@@ -32,6 +32,9 @@ jobs:
           node -e "const {DatabaseSync}=require('node:sqlite');new DatabaseSync(process.env.DATABASE_PATH).exec(\"UPDATE store_settings SET value='site' WHERE key='purchase_mode'\")"
       - name: Start application
         run: pnpm start > /tmp/ridekit.log 2>&1 &
+        env:
+          # The suite logs the same seeded accounts in many times; production keeps the default limits.
+          E2E_RATE_LIMIT_SCALE: "20"
       - name: Wait for application
         run: for attempt in {1..30}; do curl --fail --silent http://localhost:3000/api/health && exit 0; sleep 1; done; cat /tmp/ridekit.log; exit 1
       - run: pnpm test

@@ -17,8 +17,11 @@ function prune(now:number){
   for(const [key,entry] of store)if(entry.resetAt<=now)store.delete(key);
 }
 
-function hit(key:string,limit:number,windowMs:number,now:number){
-  const current=store.get(key);
+// Test environments replay the same logins many times against one server; never set this in production.
+const scale=()=>Math.max(1,Number(process.env.E2E_RATE_LIMIT_SCALE)||1);
+
+function hit(key:string,baseLimit:number,windowMs:number,now:number){
+  const current=store.get(key),limit=baseLimit*scale();
   if(!current||current.resetAt<=now){store.set(key,{count:1,resetAt:now+windowMs});return;}
   if(current.count>=limit)throw new Error("TOO_MANY_REQUESTS");
   current.count+=1;
