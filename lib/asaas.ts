@@ -1,5 +1,5 @@
 type AsaasCustomer={id:string};
-export type AsaasPayment={id:string;status:string;paymentDate?:string;confirmedDate?:string};
+export type AsaasPayment={id:string;status:string;value?:number;paymentDate?:string;confirmedDate?:string};
 export type AsaasPixQrCode={encodedImage:string;payload:string;expirationDate:string};
 
 const apiUrl=()=>process.env.ASAAS_API_URL||"https://api-sandbox.asaas.com/v3";
@@ -21,8 +21,9 @@ export async function createAsaasCustomer(value:{name:string;cpf:string;email:st
 }
 
 export async function createAsaasPixPayment(value:{customer:string;orderId:number;orderNumber:string;totalCents:number}){
-  const due=new Date();due.setDate(due.getDate()+1);
-  return asaasRequest<AsaasPayment>("/payments",{method:"POST",body:JSON.stringify({customer:value.customer,billingType:"PIX",value:Number((value.totalCents/100).toFixed(2)),dueDate:due.toISOString().slice(0,10),description:`Pedido Ridekit #${value.orderNumber}`,externalReference:`ridekit-order-${value.orderId}`})});
+  // Due date is a calendar day in Brasília; deriving it from UTC skips a day after 21:00 local time.
+  const due=new Date(Date.now()-3*60*60_000+24*60*60_000).toISOString().slice(0,10);
+  return asaasRequest<AsaasPayment>("/payments",{method:"POST",body:JSON.stringify({customer:value.customer,billingType:"PIX",value:Number((value.totalCents/100).toFixed(2)),dueDate:due,description:`Pedido Ridekit #${value.orderNumber}`,externalReference:`ridekit-order-${value.orderId}`})});
 }
 
 export async function getAsaasPixQrCode(paymentId:string){return asaasRequest<AsaasPixQrCode>(`/payments/${encodeURIComponent(paymentId)}/pixQrCode`);}

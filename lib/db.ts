@@ -47,6 +47,13 @@ export function initializeDatabase(db: DatabaseSync, schemaPath = path.join(proc
     if (!orderColumns.some(column => column.name === "pix_expires_at")) db.exec("ALTER TABLE orders ADD COLUMN pix_expires_at TEXT");
     if (!orderColumns.some(column => column.name === "payment_updated_at")) db.exec("ALTER TABLE orders ADD COLUMN payment_updated_at TEXT");
     if (!orderColumns.some(column => column.name === "idempotency_key")) db.exec("ALTER TABLE orders ADD COLUMN idempotency_key TEXT");
+    if (!orderColumns.some(column => column.name === "idempotency_hash")) db.exec("ALTER TABLE orders ADD COLUMN idempotency_hash TEXT");
+    if (!orderColumns.some(column => column.name === "attention_reason")) db.exec("ALTER TABLE orders ADD COLUMN attention_reason TEXT");
+    if (!orderColumns.some(column => column.name === "reservation_expires_at")) {
+      db.exec("ALTER TABLE orders ADD COLUMN reservation_expires_at TEXT");
+      // Pending orders from before this column: Pix expirations are Brasília time; orders without a charge get 30 minutes.
+      db.exec("UPDATE orders SET reservation_expires_at=COALESCE(datetime(pix_expires_at,'+3 hours'),datetime(created_at,'+30 minutes')) WHERE status='pending' AND payment_status='pending'");
+    }
     const whatsappColumns = db.prepare("PRAGMA table_info(whatsapp_requests)").all() as { name:string }[];
     if (!whatsappColumns.some(column => column.name === "customer_zip_code")) db.exec("ALTER TABLE whatsapp_requests ADD COLUMN customer_zip_code TEXT");
     if (!whatsappColumns.some(column => column.name === "shipping_rule_id")) db.exec("ALTER TABLE whatsapp_requests ADD COLUMN shipping_rule_id INTEGER");
@@ -79,6 +86,7 @@ export function initializeDatabase(db: DatabaseSync, schemaPath = path.join(proc
     if(!adminColumns.some(column=>column.name==="recovery_codes_json"))db.exec("ALTER TABLE admin_users ADD COLUMN recovery_codes_json TEXT");
     if(!adminColumns.some(column=>column.name==="permissions_json"))db.exec("ALTER TABLE admin_users ADD COLUMN permissions_json TEXT");
     if(!adminColumns.some(column=>column.name==="two_factor_last_counter"))db.exec("ALTER TABLE admin_users ADD COLUMN two_factor_last_counter INTEGER");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_orders_reservation_due ON orders(status,payment_status,reservation_expires_at)");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_idempotency ON orders(customer_id,idempotency_key) WHERE idempotency_key IS NOT NULL");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_provider_payment_id ON orders(provider_payment_id) WHERE provider_payment_id IS NOT NULL");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_asaas_customer_id ON customers(asaas_customer_id) WHERE asaas_customer_id IS NOT NULL");

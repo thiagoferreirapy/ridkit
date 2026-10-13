@@ -1,4 +1,5 @@
 "use client";
+import { uuid } from "@/lib/client-utils";
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { fetchWithRefresh,useAuth } from "@/components/auth-state";
@@ -27,7 +28,7 @@ const defaultSettings:PublicStoreSettings={store_name:"Ridekit",purchase_mode:"s
 const ShopContext=createContext<ShopState|null>(null);
 
 async function jsonRequest(url:string,init?:RequestInit){const response=await fetchWithRefresh(url,init);const payload=await response.json();if(!response.ok)throw new Error(payload.error||"Não foi possível concluir a ação");return payload.data;}
-function createSessionId(){const uuid=typeof crypto!=="undefined"&&typeof crypto.randomUUID==="function"?crypto.randomUUID():`${Date.now().toString(36)}-${Math.random().toString(36).slice(2,12)}`;return `ridekit-${uuid}`;}
+function createSessionId(){return `ridekit-${uuid()}`;}
 
 export function ShopProvider({children}:{children:React.ReactNode}) {
   const {user,loading:authLoading}=useAuth();

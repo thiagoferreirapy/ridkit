@@ -25,7 +25,7 @@ export const productSchema = z.object({
 export const productPatchSchema = productSchema.omit({ images: true, variants: true, attributes:true }).partial();
 export const adminProductPatchSchema = productPatchSchema.extend({
   images: z.array(z.object({ id:z.coerce.number().int().positive().optional(),url:imageLocation,alt:z.string().min(2),photographer:z.string().optional().nullable(),photographer_url:httpUrl.optional().nullable() })).optional(),
-  variants: z.array(z.object({ id:z.coerce.number().int().positive().optional(),sku:z.string().min(3),size:z.string().min(1),color:z.string().min(2),stock:z.coerce.number().int().nonnegative(),reserved_stock:z.coerce.number().int().nonnegative().default(0),price_cents:z.coerce.number().int().nonnegative().nullable().optional(),active:z.coerce.number().int().min(0).max(1).default(1) })).optional(),
+  variants: z.array(z.object({ id:z.coerce.number().int().positive().optional(),sku:z.string().min(3),size:z.string().min(1),color:z.string().min(2),stock:z.coerce.number().int().nonnegative(),price_cents:z.coerce.number().int().nonnegative().nullable().optional(),active:z.coerce.number().int().min(0).max(1).default(1) })).optional(),
   attributes: z.array(z.object({name:z.string().trim().min(1).max(80),value:z.string().trim().min(1).max(300)})).optional(),
 });
 
@@ -33,10 +33,13 @@ export const orderSchema = z.object({
   legal_version: z.string(), accept_terms: z.literal(true), acknowledge_privacy: z.literal(true),
   checkout_identity:z.object({email:z.string().trim().email().max(160),cpf:z.string().regex(/^\d{11}$/),phone:z.string().regex(/^\d{10,11}$/)}),
   idempotency_key: z.string().uuid().optional(),
-  coupon_code: z.string().trim().optional(),
+  coupon_code: z.string().trim().max(40).optional(),
   payment_method: z.literal("pix"), shipping_method: z.enum(["Econômica","Expressa","Retirada"]),
-  shipping_address: z.object({ zip_code:z.string().min(8), street:z.string().min(2), number:z.string().min(1), complement:z.string().optional(), district:z.string().min(2), city:z.string().min(2), state:z.string().length(2) }),
-  items: z.array(z.object({ variant_id:z.coerce.number().int().positive(), quantity:z.coerce.number().int().min(1).max(10) })).min(1),
+  shipping_address: z.object({ zip_code:z.string().min(8).max(9), street:z.string().min(2).max(160), number:z.string().min(1).max(20), complement:z.string().max(80).optional(), district:z.string().min(2).max(80), city:z.string().min(2).max(80), state:z.string().length(2) }),
+  items: z.array(z.object({ variant_id:z.coerce.number().int().positive(), quantity:z.coerce.number().int().min(1).max(10) })).min(1).max(20)
+    // Repeated variants are merged so stock is checked against the combined quantity.
+    .transform(items=>[...items.reduce((merged,item)=>merged.set(item.variant_id,(merged.get(item.variant_id)||0)+item.quantity),new Map<number,number>())].map(([variant_id,quantity])=>({variant_id,quantity})))
+    .refine(items=>items.every(item=>item.quantity<=10),"Máximo de 10 unidades por item"),
 });
 
 export const cartSchema = z.object({ session_id:z.string().min(6).max(120), customer_id:z.coerce.number().int().positive().nullable().optional(), variant_id:z.coerce.number().int().positive(), quantity:z.coerce.number().int().min(1).max(10).default(1) });
