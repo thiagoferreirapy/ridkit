@@ -3,7 +3,9 @@
 const exact = new Set([
   "/", "/capacetes", "/busca", "/ofertas", "/lancamentos", "/categorias", "/carrinho", "/conta-encerrada",
   "/login", "/recuperar-senha", "/redefinir-senha", "/marcas", "/conta", "/privacidade", "/termos",
-  "/sobre", "/contato", "/entrega", "/garantia", "/guia-de-tamanho", "/ajuda", "/ajuda/devolucoes", "/mapa",
+  "/sobre", "/contato", "/entrega", "/garantia", "/guia-de-tamanho", "/ajuda", "/ajuda/devolucoes",
+  // Internal route inventory for development only.
+  ...(process.env.NODE_ENV === "production" ? [] : ["/mapa"]),
 ]);
 const prefixes = ["/produto/", "/marcas/", "/conta/", "/admin", "/checkout"];
 

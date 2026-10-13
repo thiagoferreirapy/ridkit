@@ -1,8 +1,8 @@
 {
   "ci": {
     "collect": {
-      "startServerCommand": "pnpm dev",
-      "startServerReadyPattern": "Ready|Local",
+      "startServerCommand": "pnpm start",
+      "startServerReadyPattern": "Ready|Local|started",
       "url": ["http://127.0.0.1:3000/", "http://127.0.0.1:3000/capacetes"],
       "numberOfRuns": 1
     },

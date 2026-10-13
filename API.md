@@ -2,106 +2,154 @@
 
 Local base URL: `http://localhost:3000/api`
 
-The API uses Next.js Route Handlers on the Node.js runtime and the built-in `node:sqlite` driver. All responses use `{ "data": ... }`; errors use `{ "error": "..." }` and the appropriate HTTP status.
+Next.js Route Handlers on the Node.js runtime with the built-in `node:sqlite` driver. Responses use `{ "data": ... }`; errors use `{ "error": "..." }` with the matching HTTP status (`400` bad request, `401` no session, `403` not allowed, `404`, `409` conflict, `422` validation, `429` rate limited).
+
+Customers authenticate with HttpOnly cookies (`/api/auth/*`); the admin panel uses separate cookies (`/api/admin-auth/*`). Any `customer_id` sent by the browser is ignored: the customer always comes from the session.
 
 ## Setup
 
 ```bash
-npm install
-npm run db:seed
-npm run dev
+pnpm install
+pnpm db:seed
+pnpm dev
 ```
 
-The seed is deterministic and can be run again to reset demonstration data.
+`db:seed` resets the database with demo data (refuses to run with `NODE_ENV=production`). Demo logins: customers `carlos-silva@example.com` … with `Ridekit123!`, admin `admin@ridekit.com.br` / `Admin123!`.
 
-## Main endpoints
+## Public storefront
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| GET | `/api/health` | Runtime, database and record health |
-| GET | `/api/cep/:cep` | Address lookup through ViaCEP with BrasilAPI fallback |
-| GET | `/api/shipping/quote` | Quote shipping by CEP, subtotal and delivery method |
-| GET, POST, PATCH, DELETE | `/api/shipping-regions` | Admin management of regional free-shipping rules |
+| GET | `/api/health` | Liveness check (no internal details) |
+| GET | `/api/catalog` | Brands, categories, sizes and filter metadata |
+| GET | `/api/products` | Published products with filters and pagination (no purchase cost) |
+| GET | `/api/products/:id-or-slug` | Published product detail, variants, attributes, size chart, reviews |
+| GET, POST, DELETE | `/api/search` | Suggestions, recent searches per `session_id`, popular searches |
+| GET | `/api/hero-slides` | Active home banners |
+| GET | `/api/store-settings` | Public store settings (purchase mode, shipping, Pix discount) |
+| GET | `/api/cep/:cep` | Address lookup (ViaCEP with BrasilAPI fallback) |
+| GET | `/api/shipping/quote` | Shipping quote by CEP, subtotal and method |
+| GET, POST, PATCH, DELETE | `/api/cart` | Cart by `session_id`; a cart linked to an account is only visible to it |
+| POST, DELETE | `/api/cart/coupon` | Redeem/select or clear a coupon (requires login) |
+| GET, POST, DELETE | `/api/favorites` | Favorites by `session_id` |
+| GET, POST | `/api/reviews` | Approved reviews; customers with a paid order can review |
+| POST | `/api/review-images` | Upload review photos |
 | POST | `/api/contact` | Store a support message and notify the team |
-| POST | `/api/newsletter` | Subscribe an email and send confirmation |
-| POST | `/api/auth/register` | Create an unverified customer and send the 24-hour validation link |
-| GET | `/api/auth/verify-email?token=...` | Validate the address, activate the account and send the configurable welcome email |
-| POST | `/api/auth/resend-verification` | Resend a validation link without revealing whether the account exists |
-| POST | `/api/auth/forgot-password` | Request a password-reset email |
-| POST | `/api/auth/reset-password` | Consume a reset token and set a new password |
-| PATCH, DELETE | `/api/account/addresses/:id` | Manage an authenticated customer's address |
-| GET | `/api/catalog` | Brands, categories and featured products |
-| GET, POST | `/api/products` | Filtered catalog and product creation |
-| GET, PATCH, DELETE | `/api/products/:id-or-slug` | Product detail, edit and soft delete |
-| GET, POST, PATCH, DELETE | `/api/cart` | Persistent cart by `session_id` |
-| GET, POST | `/api/orders` | Order list and transactional checkout |
-| POST | `/api/whatsapp-checkout` | Build a WhatsApp order from the authenticated customer's saved profile and primary address |
-| GET, PATCH | `/api/orders/:id` | Order detail, tracking and status updates |
-| GET | `/api/dashboard` | Revenue, stock, order and product metrics |
-| CRUD | `/api/brands/:id` | Brand management |
-| CRUD | `/api/categories/:id` | Category management |
-| CRUD | `/api/customers/:id` | Customer management |
-| CRUD | `/api/coupons/:id` | Coupon management |
-| CRUD | `/api/reviews/:id` | Review moderation |
-| CRUD | `/api/variants/:id` | Variant and inventory management |
+| POST | `/api/newsletter`, GET `/api/newsletter/unsubscribe` | Subscribe; HMAC-signed unsubscribe link |
+| POST | `/api/whatsapp-checkout` | Build a WhatsApp order from the logged-in customer's profile and address |
 
-## Product filters
+### Product filters
 
-`GET /api/products?q=ls2&brand=ls2&category=fechados&min_price=500&max_price=1500&featured=1&sort=rating&page=1&limit=12`
+`GET /api/products?q=ls2&brand=ls2&category=fechados&size=58%20%2F%20M&min_price=500&max_price=1500&featured=1&offer=1&new=1&sort=best_selling&page=1&limit=12`
 
-Supported sorting: `price_asc`, `price_desc`, `rating`, `newest`.
+Sorting: `price_asc`, `price_desc`, `rating`, `newest`, `best_selling` (units sold in paid orders). `limit` is capped at 100. `?admin=1` returns drafts and cost and requires `catalog.view`.
 
-## Add to cart
+## Customer account
 
-```json
-POST /api/cart
-{
-  "session_id": "browser-session-001",
-  "customer_id": 1,
-  "variant_id": 1,
-  "quantity": 1
-}
-```
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/api/auth/register` | Create an unverified account and send a 24-hour validation link |
+| GET | `/api/auth/verify-email?token=` | Activate the account and send the welcome email |
+| POST | `/api/auth/resend-verification` | Resend the validation link (same answer whether or not the account exists) |
+| POST | `/api/auth/login`, `/api/auth/logout`, `/api/auth/refresh` | Session; refresh tokens rotate and reuse revokes the family |
+| GET | `/api/auth/me` | Current customer |
+| POST | `/api/auth/forgot-password`, `/api/auth/reset-password` | Reset link valid for 30 minutes, single use; revokes all sessions |
+| GET, PATCH, POST | `/api/account` | Profile, addresses, coupons and orders; changing the login e-mail requires `current_password` and confirmation from the new address |
+| GET | `/api/account/confirm-email?token=` | Confirms an e-mail change and revokes every session |
+| PATCH, DELETE | `/api/account/addresses/:id` | Manage a saved address |
+| POST | `/api/account/close` | Close the account (password + confirmation phrase) |
 
-Read the cart with `GET /api/cart?session_id=browser-session-001`. Update an item using `PATCH` with `session_id`, `item_id` and `quantity`; remove it with `DELETE` and `session_id` plus `item_id`.
+Login, password reset, verification and coupon redemption are rate limited per IP **and** per account, so rotating `X-Forwarded-For` does not bypass them. The header is only trusted with `TRUSTED_PROXY=1`.
 
-## Create an order
+## Checkout and payment
+
+### Create an order
 
 ```json
 POST /api/orders
 {
+  "legal_version": "2026-09-21", "accept_terms": true, "acknowledge_privacy": true,
+  "checkout_identity": { "email": "cliente@example.com", "cpf": "12345678909", "phone": "11987654321" },
+  "idempotency_key": "7b0c4f0e-6a43-4c55-9d5e-0f6a4b7d2e11",
   "coupon_code": "PIX5",
   "payment_method": "pix",
   "shipping_method": "Econômica",
-  "shipping_address": {
-    "zip_code": "01100-000",
-    "street": "Rua das Pilotas",
-    "number": "123",
-    "district": "Centro",
-    "city": "São Paulo",
-    "state": "SP"
-  },
+  "shipping_address": { "zip_code": "01100-000", "street": "Rua das Pilotas", "number": "123", "district": "Centro", "city": "São Paulo", "state": "SP" },
   "items": [{ "variant_id": 1, "quantity": 1 }]
 }
 ```
 
-Order creation validates stock, coupon availability and customer data within one SQLite transaction. Stock is reserved at creation, committed after payment and restored on cancellation/refund.
+- Prices, shipping, coupon and Pix discount are recomputed on the server; totals sent by the browser are ignored.
+- Up to 20 lines; repeated `variant_id`s are merged and checked against stock as one quantity (max 10 per item).
+- The CPF must pass check-digit validation.
+- Stock is **reserved** inside the same `BEGIN IMMEDIATE` transaction. The reservation lasts 30 minutes until a Pix charge exists, then as long as the QR code is payable (`reservation_expires_at`).
+- At most 3 unpaid orders per customer.
+- **Idempotency:** retrying with the same key and the same content returns the existing pending order (`idempotent: true`). The same key with a different cart answers `409`. A key whose order is already closed is released for the new order.
 
-The customer is always resolved from the authenticated HttpOnly session cookie. A `customer_id` supplied by the browser is ignored/rejected by validation.
+### Pix
 
-## Regional free shipping
+`POST /api/payments/pix { "order_id": 1 }` creates the Asaas charge (only for a pending order inside its reservation window; parallel calls cannot create two charges). `GET /api/payments/pix?order_id=1` returns the QR code and status.
 
-Administrators configure rules at `/admin/frete-regional`. A rule may combine CEP prefix, district, city and state, with optional start/end dates. `applies_to` accepts `standard` or `all`; all populated geographic fields must match the resolved CEP.
+### Order lifecycle
 
-Example quote: `GET /api/shipping/quote?cep=72600100&subtotal=89990&method=standard`. The response includes the resolved address, freight price, reason and matched rule. Order and WhatsApp checkout store a snapshot of the rule that granted free shipping.
+All status changes go through `lib/order-state.ts`, the only code that touches stock, reservations and coupon usage:
 
-## Customer email validation
+| Status | Units are |
+|---|---|
+| `pending` | reserved |
+| `paid`, `preparing`, `shipped`, `delivered` | sold |
+| `cancelled`, `refunded` | released (a refund after shipping does not restock automatically) |
 
-Registration does not create a logged-in session. A single-use token is stored only as a SHA-256 hash, expires after 24 hours and activates the customer through `/api/auth/verify-email`. Login rejects pending accounts. After activation, the welcome template configured at `/admin/configuracoes` is sent through Resend; the supported placeholders are `{{name}}`, `{{store_name}}` and `{{home_url}}`.
+Admin transitions (`PATCH /api/orders/:id { "status": "...", "tracking_code"?: "..." }`): `pending → paid | cancelled`, `paid → preparing | shipped | refunded`, `preparing → shipped | refunded`, `shipped → delivered | refunded`, `delivered → refunded`. Anything else answers `409`.
+
+Orders that need a human decision (amount mismatch, payment received after the reservation expired with no stock left, stock inconsistency) keep the money recorded and get `attention_reason`; the admin order list highlights them.
+
+### Asaas webhook
+
+`POST /api/webhooks/asaas` with header `asaas-access-token: $ASAAS_WEBHOOK_TOKEN` (fails closed when the variable is missing).
+
+- Events are deduplicated by `id` in the same transaction as their effects.
+- `PAYMENT_RECEIVED` / `PAYMENT_CONFIRMED` approve only when `payment.value` matches the order total.
+- `PAYMENT_OVERDUE` / `PAYMENT_DELETED` cancel a pending order.
+- `PAYMENT_REFUNDED` refunds it.
+- Late or duplicate events never sell stock twice.
+
+`POST /api/admin/reconcile-payment { "order_id": 1 }` queries Asaas and applies the same rules.
+
+## Admin
+
+Every admin route checks a permission (`lib/admin-permissions.ts`) and re-reads the admin's `active` flag on each request.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/api/admin-auth/login`, `/logout`, `/refresh`; GET `/me` | Admin session (TOTP 2FA and one-time recovery codes; each TOTP code is accepted once) |
+| GET, POST, PUT, DELETE | `/api/admin/security` | Set up, confirm or disable 2FA (setup cannot replace an active secret) |
+| GET, POST | `/api/admin/users` | Team members and permissions |
+| GET | `/api/admin-logs` | Audit log |
+| GET | `/api/dashboard` | Revenue and margin from paid orders, stock, operations |
+| GET, POST | `/api/orders` | Paginated order list (`?status=`), checkout |
+| GET, PATCH | `/api/orders/:id` | Order detail (customer) / status change (admin) |
+| POST | `/api/admin/expire-reservations` | Run reservation expiry now (also runs every 5 minutes in-process) |
+| POST | `/api/products`, PATCH/DELETE `/api/products/:id` | Catalog editing (`reserved_stock` is never written from the form) |
+| CRUD | `/api/brands`, `/api/categories`, `/api/hero-slides`, `/api/category_size_chart` | Catalog resources |
+| CRUD | `/api/variants`, `/api/inventory_movements` | Stock adjustments (logged as movements) |
+| CRUD | `/api/customers` | Customers (no password field; changing the login e-mail needs `admins.manage`, unverifies it and revokes sessions) |
+| CRUD | `/api/coupons` | Coupons with `per_customer_limit` and `first_order_only` |
+| CRUD | `/api/reviews`, `/api/contact_messages`, `/api/newsletter_subscribers` | Moderation and support |
+| GET, POST, PATCH, DELETE | `/api/shipping-regions` | Regional free-shipping rules |
+| GET, POST | `/api/newsletter-campaigns` | Segmented campaigns (`{{home_url}}` is replaced in the HTML) |
+| GET, PATCH | `/api/store-settings` | Store configuration |
+| GET, PATCH | `/api/whatsapp-checkout` | WhatsApp sales requests |
+| POST | `/api/uploads` | Image upload to `public/uploads` |
+
+Generic CRUD routes accept `GET ?q=&page=&limit=`, `POST`, `GET/PATCH/DELETE /:id`; resources with `active` are soft-deleted.
+
+## Dates
+
+Times typed in the admin (`datetime-local`) and Asaas expirations are Brasília wall-clock times and are compared with `STORE_NOW_SQL` (`lib/store-time.ts`). Internal timestamps (tokens, reservations) are stored in UTC.
 
 ## Notes
 
-- This is a local development API. Authentication and payment provider credentials are intentionally not simulated as production secrets.
-- Prices are stored as integer cents.
+- Prices are integer cents.
 - Product removal is a soft delete to preserve order history.
-- Unsplash URLs and attribution metadata are stored in `product_images`.
+- Without `RESEND_API_KEY`, e-mails are written to `email_outbox` as previews.

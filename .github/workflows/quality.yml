@@ -7,27 +7,46 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+    env:
+      DATABASE_PATH: ${{ github.workspace }}/ci-data/ridekit.sqlite
+      JWT_SECRET: ci-customer-secret-with-at-least-32-bytes
+      ADMIN_JWT_SECRET: ci-admin-secret-with-at-least-32-bytes
+      NEWSLETTER_SECRET: ci-newsletter-secret-with-at-least-32-bytes
+      ASAAS_WEBHOOK_TOKEN: ci-webhook-token
+      APP_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm test:unit
       - run: pnpm build
+      - name: Seed database
+        run: |
+          pnpm db:seed
+          node -e "const {DatabaseSync}=require('node:sqlite');new DatabaseSync(process.env.DATABASE_PATH).exec(\"UPDATE store_settings SET value='site' WHERE key='purchase_mode'\")"
       - name: Start application
         run: pnpm start > /tmp/ridekit.log 2>&1 &
-        env:
-          JWT_SECRET: ci-customer-secret-with-at-least-32-bytes
-          ADMIN_JWT_SECRET: ci-admin-secret-with-at-least-32-bytes
-          NEWSLETTER_SECRET: ci-newsletter-secret-with-at-least-32-bytes
-          APP_URL: http://localhost:3000
       - name: Wait for application
         run: for attempt in {1..30}; do curl --fail --silent http://localhost:3000/api/health && exit 0; sleep 1; done; cat /tmp/ridekit.log; exit 1
       - run: pnpm test
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+      - name: Server log
+        if: failure()
+        run: cat /tmp/ridekit.log
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
