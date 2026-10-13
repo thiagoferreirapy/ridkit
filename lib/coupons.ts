@@ -1,12 +1,14 @@
 import { STORE_NOW_SQL } from "./store-time.ts";
 import type { DatabaseSync } from "node:sqlite";
 
-export type CouponRule={id:number;code:string;description:string|null;discount_type:"percent"|"fixed"|"shipping";discount_value:number;min_order_cents:number;scope_type:"all"|"category"|"product";scope_value:string|null;usage_limit:number|null;used_count:number;ends_at:string|null};
+export type CouponRule={id:number;code:string;description:string|null;discount_type:"percent"|"fixed"|"shipping";discount_value:number;min_order_cents:number;scope_type:"all"|"category"|"product";scope_value:string|null;usage_limit:number|null;used_count:number;per_customer_limit:number|null;first_order_only:number;ends_at:string|null};
 export type CouponItem={product_id:number;category_id:number;price_cents:number;quantity:number};
 export type CouponEvaluation={coupon:CouponRule;eligibleSubtotalCents:number;missingCents:number;productCents:number;shippingCents:number;totalCents:number;netSavingsCents:number};
 
 const activeSql=`c.active=1 AND (c.starts_at IS NULL OR datetime(c.starts_at)<=${STORE_NOW_SQL}) AND (c.ends_at IS NULL OR datetime(c.ends_at)>=${STORE_NOW_SQL}) AND (c.usage_limit IS NULL OR c.used_count<c.usage_limit)`;
-const selectedColumns="c.id,c.code,c.description,c.discount_type,c.discount_value,c.min_order_cents,c.scope_type,c.scope_value,c.usage_limit,c.used_count,c.ends_at";
+const selectedColumns="c.id,c.code,c.description,c.discount_type,c.discount_value,c.min_order_cents,c.scope_type,c.scope_value,c.usage_limit,c.used_count,c.per_customer_limit,c.first_order_only,c.ends_at";
+// Per-customer rules count orders that still hold the coupon (cancelled/refunded ones give it back).
+const customerSql=(customer:string)=>`(c.per_customer_limit IS NULL OR (SELECT COUNT(*) FROM orders o WHERE o.customer_id=${customer} AND o.coupon_id=c.id AND o.status NOT IN ('cancelled','refunded'))<c.per_customer_limit) AND (c.first_order_only=0 OR NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id=${customer} AND o.status NOT IN ('cancelled','refunded')))`;
 const money=(cents:number)=>(cents/100).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 
 export function assertCouponScope(db:DatabaseSync,scopeType:string,scopeValue:string|null){
@@ -17,7 +19,7 @@ export function assertCouponScope(db:DatabaseSync,scopeType:string,scopeValue:st
 }
 
 export function activeCustomerCoupons(db:DatabaseSync,customerId:number):CouponRule[]{
-  return db.prepare(`SELECT ${selectedColumns} FROM coupons c JOIN customer_coupons cc ON cc.coupon_id=c.id WHERE cc.customer_id=? AND ${activeSql} ORDER BY c.code`).all(customerId) as CouponRule[];
+  return db.prepare(`SELECT ${selectedColumns} FROM coupons c JOIN customer_coupons cc ON cc.coupon_id=c.id WHERE cc.customer_id=? AND ${activeSql} AND ${customerSql("cc.customer_id")} ORDER BY c.code`).all(customerId) as CouponRule[];
 }
 
 export function redeemCoupon(db:DatabaseSync,customerId:number,code:string):CouponRule{
@@ -25,6 +27,7 @@ export function redeemCoupon(db:DatabaseSync,customerId:number,code:string):Coup
   if(!normalized||normalized.length>40)throw new Error("BAD_REQUEST:Informe um código de cupom válido");
   const coupon=db.prepare(`SELECT ${selectedColumns} FROM coupons c WHERE upper(c.code)=? AND ${activeSql}`).get(normalized) as CouponRule|undefined;
   if(!coupon)throw new Error("BAD_REQUEST:Cupom inválido, esgotado ou expirado");
+  if(!db.prepare(`SELECT 1 FROM coupons c WHERE c.id=? AND ${customerSql("?")}`).get(coupon.id,customerId,customerId))throw new Error(coupon.first_order_only?"BAD_REQUEST:Este cupom vale apenas para a primeira compra":"BAD_REQUEST:Você já usou este cupom o número máximo de vezes");
   db.prepare("INSERT INTO customer_coupons(customer_id,coupon_id) VALUES(?,?) ON CONFLICT(customer_id,coupon_id) DO NOTHING").run(customerId,coupon.id);
   return coupon;
 }

@@ -68,6 +68,12 @@ export function initializeDatabase(db: DatabaseSync, schemaPath = path.join(proc
     const couponColumns = db.prepare("PRAGMA table_info(coupons)").all() as { name:string }[];
     if (!couponColumns.some(column => column.name === "scope_type")) db.exec("ALTER TABLE coupons ADD COLUMN scope_type TEXT NOT NULL DEFAULT 'all' CHECK(scope_type IN ('all','category','product'))");
     if (!couponColumns.some(column => column.name === "scope_value")) db.exec("ALTER TABLE coupons ADD COLUMN scope_value TEXT");
+    if (!couponColumns.some(column => column.name === "per_customer_limit")) db.exec("ALTER TABLE coupons ADD COLUMN per_customer_limit INTEGER CHECK(per_customer_limit IS NULL OR per_customer_limit>0)");
+    if (!couponColumns.some(column => column.name === "first_order_only")) {
+      db.exec("ALTER TABLE coupons ADD COLUMN first_order_only INTEGER NOT NULL DEFAULT 0 CHECK(first_order_only IN (0,1))");
+      // The seeded welcome coupon promised "primeira compra" but was reusable on every order.
+      db.exec("UPDATE coupons SET first_order_only=1,per_customer_limit=1 WHERE upper(code)='BEMVINDO10'");
+    }
     db.exec("CREATE TABLE IF NOT EXISTS customer_coupons (customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,redeemed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(customer_id,coupon_id)) STRICT");
     db.exec("CREATE TABLE IF NOT EXISTS account_closures (id INTEGER PRIMARY KEY AUTOINCREMENT,customer_id INTEGER NOT NULL UNIQUE REFERENCES customers(id),protocol TEXT NOT NULL UNIQUE,closed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP) STRICT");
     db.exec("CREATE TABLE IF NOT EXISTS legal_acceptances (id INTEGER PRIMARY KEY AUTOINCREMENT,customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,document_type TEXT NOT NULL CHECK(document_type IN ('terms','privacy')),version TEXT NOT NULL,context TEXT NOT NULL CHECK(context IN ('registration','checkout')),accepted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(customer_id,document_type,version,context)) STRICT");

@@ -17,6 +17,7 @@ export function apiError(error: unknown) {
   if (message === "UNAUTHORIZED") return Response.json({ error: "Sessão expirada" }, { status: 401 });
   if (message === "FORBIDDEN") return Response.json({ error: "Acesso administrativo necessário" }, { status: 403 });
   if (message === "TOO_MANY_REQUESTS") return Response.json({ error: "Muitas tentativas. Aguarde alguns minutos." }, { status: 429 });
+  if (message.startsWith("FORBIDDEN:")) return Response.json({ error: message.slice(10) }, { status: 403 });
   if (message.startsWith("CONFLICT:")) return Response.json({ error: message.slice(9) }, { status: 409 });
   if (message.startsWith("BAD_REQUEST:")) return Response.json({ error: message.slice(12) }, { status: 400 });
   if (message.startsWith("VALIDATION:")) return Response.json({ error: message.slice(11) }, { status: 422 });

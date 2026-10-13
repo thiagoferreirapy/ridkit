@@ -112,8 +112,8 @@ try {
     return customerId;
   });
 
-  const couponInsert = db.prepare("INSERT INTO coupons(code,description,discount_type,discount_value,min_order_cents,usage_limit,used_count,starts_at,ends_at,active) VALUES(?,?,?,?,?,?,?,?,?,?)");
-  [["BEMVINDO10","10% na primeira compra","percent",10,29900],["PIX5","5% adicional no Pix","percent",5,0],["FRETEGRATIS","Frete grátis acima de R$ 299","shipping",0,29900],["RIDE50","R$ 50 em compras acima de R$ 800","fixed",5000,80000]].forEach((c,i)=>couponInsert.run(...c,500,15+i*8,"2026-01-01","2027-01-01",1));
+  const couponInsert = db.prepare("INSERT INTO coupons(code,description,discount_type,discount_value,min_order_cents,first_order_only,per_customer_limit,usage_limit,used_count,starts_at,ends_at,active) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)");
+  [["BEMVINDO10","10% na primeira compra","percent",10,29900,1,1],["PIX5","5% adicional no Pix","percent",5,0,0,null],["FRETEGRATIS","Frete grátis acima de R$ 299","shipping",0,29900,0,null],["RIDE50","R$ 50 em compras acima de R$ 800","fixed",5000,80000,0,null]].forEach((c,i)=>couponInsert.run(...c,500,15+i*8,"2026-01-01","2027-01-01",1));
 
   const orderInsert = db.prepare(`INSERT INTO orders(customer_id,coupon_id,order_number,status,payment_method,payment_status,subtotal_cents,discount_cents,shipping_cents,total_cents,shipping_method,shipping_address_json,tracking_code,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const orderItemInsert = db.prepare("INSERT INTO order_items(order_id,product_id,variant_id,product_name,variant_name,sku,unit_price_cents,quantity,total_cents) VALUES(?,?,?,?,?,?,?,?,?)");

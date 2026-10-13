@@ -27,9 +27,6 @@ CREATE TABLE IF NOT EXISTS categories (
   variation_type TEXT NOT NULL DEFAULT 'none' CHECK(variation_type IN ('none','size','option')),
   variation_label TEXT,
   active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
-  two_factor_secret TEXT,
-  two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK(two_factor_enabled IN (0,1)),
-  recovery_codes_json TEXT,
   sort_order INTEGER NOT NULL DEFAULT 0,
   seo_title TEXT,
   seo_description TEXT,
@@ -150,6 +147,11 @@ CREATE TABLE IF NOT EXISTS admin_users (
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'admin' CHECK(role IN ('admin','manager','support')),
   active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+  two_factor_secret TEXT,
+  two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK(two_factor_enabled IN (0,1)),
+  two_factor_last_counter INTEGER,
+  recovery_codes_json TEXT,
+  permissions_json TEXT,
   last_login_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) STRICT;
@@ -188,6 +190,8 @@ CREATE TABLE IF NOT EXISTS coupons (
   scope_value TEXT,
   usage_limit INTEGER,
   used_count INTEGER NOT NULL DEFAULT 0,
+  per_customer_limit INTEGER CHECK(per_customer_limit IS NULL OR per_customer_limit>0),
+  first_order_only INTEGER NOT NULL DEFAULT 0 CHECK(first_order_only IN (0,1)),
   starts_at TEXT,
   ends_at TEXT,
   active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1))
@@ -539,5 +543,16 @@ CREATE INDEX IF NOT EXISTS idx_whatsapp_requests_status_created ON whatsapp_requ
 CREATE INDEX IF NOT EXISTS idx_free_shipping_regions_active ON free_shipping_regions(active, starts_at, ends_at);
 CREATE INDEX IF NOT EXISTS idx_search_history_session ON search_history(session_id, searched_at DESC);
 CREATE INDEX IF NOT EXISTS idx_search_history_popular ON search_history(results_count, searched_at DESC);
+-- Foreign keys read on every order, cart and product listing (correlated subqueries per row).
+CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_items_variant ON order_items(variant_id);
+CREATE INDEX IF NOT EXISTS idx_order_events_order ON order_events(order_id, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_orders_coupon_customer ON orders(coupon_id, customer_id, status);
+CREATE INDEX IF NOT EXISTS idx_product_images_product ON product_images(product_id, position);
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_variant ON inventory_movements(variant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_product_attributes_product ON product_attributes(product_id, position);
+CREATE INDEX IF NOT EXISTS idx_review_images_review ON review_images(review_id, position);
+CREATE INDEX IF NOT EXISTS idx_cart_items_cart ON cart_items(cart_id);
+CREATE INDEX IF NOT EXISTS idx_customer_coupons_customer ON customer_coupons(customer_id);
 
 INSERT OR IGNORE INTO schema_migrations(version) VALUES (1);

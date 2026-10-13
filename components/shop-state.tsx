@@ -1,7 +1,7 @@
 "use client";
 import { uuid } from "@/lib/client-utils";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { fetchWithRefresh,useAuth } from "@/components/auth-state";
 
 export type CartItem={id:number;quantity:number;variant_id:number;size:string;color:string;stock:number;product_id:number;name:string;slug:string;price_cents:number;brand:string;image_url?:string;total_cents:number};
@@ -35,6 +35,9 @@ export function ShopProvider({children}:{children:React.ReactNode}) {
   const [sessionId,setSessionId]=useState(""); const [cart,setCart]=useState<CartData>(emptyCart); const [favorites,setFavorites]=useState<FavoriteItem[]>([]);const [settings,setSettings]=useState(defaultSettings);
   const [loading,setLoading]=useState(true); const [busy,setBusy]=useState(false); const [error,setError]=useState("");
   useEffect(()=>{let id=localStorage.getItem("ridekit-session-id");if(!id){id=createSessionId();localStorage.setItem("ridekit-session-id",id);}setSessionId(id);Promise.all([jsonRequest(`/api/cart?session_id=${encodeURIComponent(id)}`),jsonRequest(`/api/favorites?session_id=${encodeURIComponent(id)}`),jsonRequest("/api/store-settings")]).then(([cartData,favoriteData,storeSettings])=>{setCart(cartData);setFavorites(favoriteData.items);setSettings(storeSettings);}).catch(reason=>setError(reason.message)).finally(()=>setLoading(false));},[]);
+  // Carts belong to the account that used them: start a fresh session when someone logs out or another account logs in.
+  const previousUser=useRef<number|null|undefined>(undefined);
+  useEffect(()=>{if(authLoading)return;const current=user?.id??null,previous=previousUser.current;previousUser.current=current;if(previous===undefined||previous===null||previous===current)return;const id=createSessionId();localStorage.setItem("ridekit-session-id",id);setSessionId(id);setCart(emptyCart);setFavorites([]);},[user?.id,authLoading]);
   useEffect(()=>{if(!sessionId||authLoading)return;let active=true;jsonRequest(`/api/cart?session_id=${encodeURIComponent(sessionId)}`).then(value=>{if(active)setCart(value);}).catch(reason=>{if(active)setError(reason.message);});return()=>{active=false;};},[sessionId,user?.id,authLoading]);
   const mutate=async<T,>(action:()=>Promise<T>)=>{setBusy(true);setError("");try{return await action();}catch(reason){setError(reason instanceof Error?reason.message:"Erro inesperado");throw reason;}finally{setBusy(false);}};
   const addToCart=async(variantId:number,quantity=1)=>{if(!sessionId)return false;try{await mutate(async()=>setCart(await jsonRequest("/api/cart",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session_id:sessionId,variant_id:variantId,quantity})})));return true;}catch{return false;}};

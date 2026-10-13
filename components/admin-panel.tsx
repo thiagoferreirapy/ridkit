@@ -179,6 +179,8 @@ export const configs: Record<
       { name: "scope_type", label: "Aplicar em", type: "select", options: [["all", "Toda a loja"], ["category", "Categoria e subcategorias"], ["product", "Produto específico"]] },
       { name: "scope_value", label: "Slug da categoria ou produto (vazio para toda a loja)" },
       { name: "usage_limit", label: "Limite de usos", type: "number" },
+      { name: "per_customer_limit", label: "Limite por cliente (vazio = sem limite)", type: "number" },
+      { name: "first_order_only", label: "Somente na primeira compra", type: "select", options: [["0", "Não"], ["1", "Sim"]] },
       { name: "starts_at", label: "Início", type: "datetime-local" },
       { name: "ends_at", label: "Fim", type: "datetime-local" },
       {
