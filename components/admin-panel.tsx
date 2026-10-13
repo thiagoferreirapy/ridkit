@@ -1,5 +1,6 @@
 "use client";
 
+import { ADMIN_TRANSITIONS } from "@/lib/order-state";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
@@ -32,24 +33,26 @@ async function payload(response: Response) {
     throw new Error(body.error || "Não foi possível concluir a operação");
   return body.data;
 }
-function useAdminList(url: string) {
+function useAdminList(url: string, pageSize = 100) {
   const { adminFetch } = useAdmin();
   const [data, setData] = useState<{ items: Item[]; pagination?: Item }>({
     items: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const load = async (search = "") => {
+  const [page, setPage] = useState(1);
+  const load = async (search = "", nextPage = page) => {
     setLoading(true);
     setError("");
     try {
       setData(
         await payload(
           await adminFetch(
-            `${url}${url.includes("?") ? "&" : "?"}limit=100${search ? `&q=${encodeURIComponent(search)}` : ""}`,
+            `${url}${url.includes("?") ? "&" : "?"}limit=${pageSize}&page=${nextPage}${search ? `&q=${encodeURIComponent(search)}` : ""}`,
           ),
         ),
       );
+      setPage(nextPage);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Erro ao carregar");
     } finally {
@@ -57,9 +60,9 @@ function useAdminList(url: string) {
     }
   };
   useEffect(() => {
-    load();
+    load("", 1);
   }, [url]);
-  return { ...data, loading, error, load, setData };
+  return { ...data, loading, error, load, setData, page };
 }
 
 export const configs: Record<
@@ -392,232 +395,6 @@ configs.Categorias.fields.splice(
   { name: "seo_description", label: "Descrição SEO" },
 );
 
-export function AdminResource({ label }: { label: string }) {
-  const config = configs[label];
-  const { adminFetch } = useAdmin();
-  const list = useAdminList(`/api/${config.resource}`);
-  const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState<Item | null>(null);
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setBusy(true);
-    setMessage("");
-    const raw = Object.fromEntries(new FormData(event.currentTarget));
-    const body = Object.fromEntries(
-      Object.entries(raw).map(([k, v]) => [k, v === "" ? null : v]),
-    );
-    try {
-      await payload(
-        await adminFetch(
-          `/api/${config.resource}${editing ? `/${editing.id}` : ""}`,
-          {
-            method: editing ? "PATCH" : "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          },
-        ),
-      );
-      setOpen(false);
-      setEditing(null);
-      setMessage("Alterações salvas.");
-      await list.load(search);
-    } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Erro ao salvar");
-    } finally {
-      setBusy(false);
-    }
-  };
-  const remove = async (item: Item) => {
-    if (!confirm(`Desativar ${item.name || item.code || `#${item.id}`}?`))
-      return;
-    try {
-      await payload(
-        await adminFetch(`/api/${config.resource}/${item.id}`, {
-          method: "DELETE",
-        }),
-      );
-      await list.load(search);
-    } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Erro ao excluir");
-    }
-  };
-  return (
-    <section className="mt-7 space-y-4">
-      <div className="flex flex-col gap-4 rounded-2xl border border-line bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-semibold">{config.title}</h2>
-          <p className="mt-1 text-xs text-muted">
-            {config.description} · {list.pagination?.total || list.items.length}{" "}
-            registros
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            setEditing(null);
-            setOpen(true);
-          }}
-          className={`${button} bg-accent text-white hover:bg-accent-strong`}
-        >
-          <Plus size={16} />
-          Novo registro
-        </button>
-      </div>
-      <div className="card overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-line p-4">
-          <Search size={16} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && list.load(search)}
-            className="h-9 min-w-0 flex-1 text-sm outline-none"
-            placeholder={`Buscar em ${label.toLowerCase()}...`}
-          />
-          <button
-            onClick={() => list.load(search)}
-            className={`${button} bg-canvas`}
-          >
-            <RefreshCw size={14} />
-            Buscar
-          </button>
-        </div>
-        {list.error && <p className="p-5 text-sm text-danger">{list.error}</p>}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-xs">
-            <thead className="bg-canvas text-muted">
-              <tr>
-                {config.columns.map(([, title]) => (
-                  <th className="p-4 font-medium" key={title}>
-                    {title}
-                  </th>
-                ))}
-                <th className="p-4 text-right font-medium">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.items.map((item) => (
-                <tr className="border-t border-line" key={item.id}>
-                  {config.columns.map(([key, , format]) => (
-                    <td className="max-w-[280px] truncate p-4" key={key}>
-                      {format(item[key], item)}
-                    </td>
-                  ))}
-                  <td className="p-3">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        title="Editar"
-                        onClick={() => {
-                          setEditing(item);
-                          setOpen(true);
-                        }}
-                        className="rounded-lg border border-line p-2 hover:border-ink"
-                      >
-                        <Edit3 size={14} />
-                      </button>
-                      <button
-                        title="Desativar"
-                        onClick={() => remove(item)}
-                        className="rounded-lg border border-line p-2 text-danger hover:border-danger"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {!list.loading && !list.items.length && (
-                <tr>
-                  <td
-                    className="p-8 text-center text-muted"
-                    colSpan={config.columns.length + 1}
-                  >
-                    Nenhum registro encontrado.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        {list.loading && (
-          <div className="p-4">
-            <TableSkeleton rows={5} columns={config.columns.length + 1} />
-          </div>
-        )}
-      </div>
-      {message && <p className="text-sm text-muted">{message}</p>}
-      {open && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4">
-          <form
-            onSubmit={submit}
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-lg"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">
-                {editing ? "Editar" : "Novo registro"} · {config.title}
-              </h2>
-              <button type="button" onClick={() => setOpen(false)}>
-                <X />
-              </button>
-            </div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              {config.fields.map((input) => (
-                <label className="text-xs font-semibold" key={input.name}>
-                  {input.label}
-                  {input.type === "select" ? (
-                    <select
-                      name={input.name}
-                      defaultValue={
-                        editing?.[input.name] ?? input.options?.[0]?.[0]
-                      }
-                      className={`mt-2 ${field}`}
-                    >
-                      {input.options?.map(([value, title]) => (
-                        <option value={value} key={value}>
-                          {title}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      name={input.name}
-                      required={input.required}
-                      type={input.type || "text"}
-                      defaultValue={editing?.[input.name] ?? ""}
-                      className={`mt-2 ${field}`}
-                    />
-                  )}
-                </label>
-              ))}
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className={`${button} border border-line`}
-              >
-                Cancelar
-              </button>
-              <button
-                disabled={busy}
-                className={`${button} bg-accent text-white`}
-              >
-                {busy ? (
-                  <Loader2 className="animate-spin" size={16} />
-                ) : (
-                  <Check size={16} />
-                )}
-                Salvar
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-    </section>
-  );
-}
-
 export function AdminProducts() {
   const { adminFetch } = useAdmin();
   const list = useAdminList("/api/products?admin=1");
@@ -900,34 +677,81 @@ export function AdminInventory() {
   );
 }
 
+const orderStatusLabels: Record<string, string> = {
+  pending: "Pendente",
+  paid: "Pago",
+  preparing: "Preparando",
+  shipped: "Enviado",
+  delivered: "Entregue",
+  cancelled: "Cancelado",
+  refunded: "Reembolsado",
+};
+// Same transition table the API enforces; the select only offers moves the server accepts.
+const orderTransitions = ADMIN_TRANSITIONS as Record<string, string[]>;
+const irreversible: Record<string, string> = {
+  cancelled: "Cancelar o pedido libera o estoque reservado. Esta ação não pode ser desfeita.",
+  refunded: "Marcar como reembolsado encerra o pedido. Faça o estorno no Asaas antes de confirmar.",
+  paid: "Confirmar o pagamento manualmente baixa o estoque. Use apenas se o Pix já caiu na conta.",
+};
+
 export function AdminOrders() {
   const { adminFetch } = useAdmin();
-  const list = useAdminList("/api/orders");
-  const update = async (item: Item, status: string) => {
-    await payload(
-      await adminFetch(`/api/orders/${item.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status,
-          payment_status: status === "paid" ? "approved" : undefined,
+  const [status, setStatus] = useState("");
+  const list = useAdminList(`/api/orders${status ? `?status=${status}` : ""}`, 20);
+  const [pending, setPending] = useState<number | null>(null);
+  const [errors, setErrors] = useState<Record<number, string>>({});
+  const update = async (item: Item, next: string) => {
+    if (irreversible[next] && !window.confirm(`Pedido #${item.order_number}: ${orderStatusLabels[next]}?\n\n${irreversible[next]}`)) return;
+    let tracking: string | undefined;
+    if (next === "shipped") {
+      const value = window.prompt("Código de rastreio (opcional):", item.tracking_code || "");
+      if (value === null) return;
+      tracking = value.trim() || undefined;
+    }
+    setPending(item.id);
+    setErrors((current) => ({ ...current, [item.id]: "" }));
+    try {
+      await payload(
+        await adminFetch(`/api/orders/${item.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: next, tracking_code: tracking }),
         }),
-      }),
-    );
-    list.load();
+      );
+      await list.load("", list.page);
+    } catch (reason) {
+      setErrors((current) => ({ ...current, [item.id]: reason instanceof Error ? reason.message : "Não foi possível atualizar o pedido" }));
+    } finally {
+      setPending(null);
+    }
   };
   const reconcile=async(item:Item)=>{
+    setPending(item.id);
+    setErrors((current) => ({ ...current, [item.id]: "" }));
     try{
       const result=await payload(await adminFetch("/api/admin/reconcile-payment",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({order_id:item.id})}));
-      alert(`Asaas: ${result.provider_status}. Pedido atualizado para ${result.order_status}.`);
-      await list.load();
-    }catch(reason){alert(reason instanceof Error?reason.message:"Não foi possível reconciliar")}
+      setErrors((current)=>({...current,[item.id]:`Asaas: ${result.provider_status}. Pedido: ${orderStatusLabels[result.order_status]||result.order_status}.${result.attention_reason?` ${result.attention_reason}`:""}`}));
+      await list.load("", list.page);
+    }catch(reason){setErrors((current)=>({...current,[item.id]:reason instanceof Error?reason.message:"Não foi possível reconciliar"}));}
+    finally{setPending(null);}
   };
+  const pages = Number(list.pagination?.pages || 1);
   return (
     <section className="mt-7 grid gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="text-xs font-semibold">
+          Filtrar por status
+          <select value={status} onChange={(event) => setStatus(event.target.value)} className={`${field} ml-2 w-auto`}>
+            <option value="">Todos</option>
+            {Object.entries(orderStatusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+          </select>
+        </label>
+        {list.pagination && <span className="text-xs text-muted">{list.pagination.total} pedido(s)</span>}
+      </div>
+      {list.error && <p role="alert" className="text-sm text-danger">{list.error}</p>}
       {list.items.map((item) => (
         <div
-          className="card grid gap-4 p-5 md:grid-cols-[1fr_auto_auto_auto] md:items-center"
+          className={`card grid gap-4 p-5 md:grid-cols-[1fr_auto_auto_auto] md:items-center ${item.attention_reason ? "border-danger" : ""}`}
           key={item.id}
         >
           <div>
@@ -943,6 +767,12 @@ export function AdminOrders() {
                 Frete grátis · {item.shipping_rule_name}
               </p>
             )}
+            {item.attention_reason && (
+              <p className="mt-2 rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-danger">
+                Atenção: {item.attention_reason}
+              </p>
+            )}
+            {errors[item.id] && <p role="status" className="mt-2 text-xs font-semibold text-muted">{errors[item.id]}</p>}
           </div>
           <div className="text-right">
             <b>{money(item.total_cents)}</b>
@@ -953,26 +783,28 @@ export function AdminOrders() {
           </div>
           <select
             value={item.status}
+            disabled={pending === item.id || !(orderTransitions[item.status] || []).length}
             onChange={(e) => update(item, e.target.value)}
+            aria-label={`Status do pedido ${item.order_number}`}
             className={field}
           >
-            {[
-              ["pending", "Pendente"],
-              ["paid", "Pago"],
-              ["preparing", "Preparando"],
-              ["shipped", "Enviado"],
-              ["delivered", "Entregue"],
-              ["cancelled", "Cancelado"],
-              ["refunded", "Reembolsado"],
-            ].map(([v, t]) => (
-              <option value={v} key={v}>
-                {t}
+            {[item.status, ...(orderTransitions[item.status] || [])].map((value) => (
+              <option value={value} key={value}>
+                {orderStatusLabels[value] || value}
               </option>
             ))}
           </select>
-          <button disabled={!item.provider_payment_id} onClick={()=>reconcile(item)} className={`${button} border border-line bg-white`} title={item.provider_payment_id?"Consultar o status atual no Asaas":"Pedido sem cobrança Asaas"}>Reconciliar</button>
+          <button disabled={!item.provider_payment_id||pending===item.id} onClick={()=>reconcile(item)} className={`${button} border border-line bg-white`} title={item.provider_payment_id?"Consultar o status atual no Asaas":"Pedido sem cobrança Asaas"}>Reconciliar</button>
         </div>
       ))}
+      {!list.loading && !list.items.length && <p className="card p-6 text-sm text-muted">Nenhum pedido encontrado.</p>}
+      {pages > 1 && (
+        <nav aria-label="Paginação de pedidos" className="flex items-center justify-center gap-3">
+          <button disabled={list.page <= 1 || list.loading} onClick={() => list.load("", list.page - 1)} className={`${button} border border-line bg-white`}>Anterior</button>
+          <span className="text-xs text-muted">Página {list.page} de {pages}</span>
+          <button disabled={list.page >= pages || list.loading} onClick={() => list.load("", list.page + 1)} className={`${button} border border-line bg-white`}>Próxima</button>
+        </nav>
+      )}
     </section>
   );
 }
@@ -1255,310 +1087,5 @@ function Info({ label, value }: { label: string; value?: string }) {
       <span className="text-xs text-muted">{label}</span>
       <b className="mt-1 block text-sm">{value || "—"}</b>
     </div>
-  );
-}
-
-export function AdminProductForm({ id }: { id?: string }) {
-  const { adminFetch } = useAdmin();
-  const [catalog, setCatalog] = useState<Item>({ brands: [], categories: [] });
-  const [product, setProduct] = useState<Item | null>(id ? null : {});
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  useEffect(() => {
-    Promise.all([
-      fetch("/api/catalog").then(payload),
-      id ? fetch(`/api/products/${id}`).then(payload) : Promise.resolve({}),
-    ]).then(([c, p]) => {
-      setCatalog(c);
-      setProduct(p);
-    });
-  }, [id]);
-  if (!product)
-    return (
-      <div className="mt-7">
-        <FormSkeleton />
-      </div>
-    );
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setBusy(true);
-    setMessage("");
-    const values = Object.fromEntries(new FormData(event.currentTarget));
-    const sizes = String(values.sizes || "Único")
-      .split(",")
-      .map((v) => v.trim())
-      .filter(Boolean);
-    const image = String(values.image_url || "");
-    const baseSku = String(values.sku);
-    const body: any = {
-      brand_id: values.brand_id,
-      category_id: values.category_id,
-      name: values.name,
-      slug: values.slug || undefined,
-      sku: baseSku,
-      description: values.description,
-      price_cents: Math.round(Number(values.price) * 100),
-      compare_at_cents: values.compare_price
-        ? Math.round(Number(values.compare_price) * 100)
-        : null,
-      cost_cents: Math.round(Number(values.cost || 0) * 100),
-      color: values.color,
-      finish: values.finish || null,
-      shell_material: values.shell_material || null,
-      weight_grams: values.weight_grams || null,
-      solar_visor: values.solar_visor ? 1 : 0,
-      pinlock_ready: values.pinlock_ready ? 1 : 0,
-      featured: values.featured ? 1 : 0,
-      active: values.active ? 1 : 0,
-      images: image ? [{ url: image, alt: String(values.name) }] : [],
-      variants: id
-        ? product.variants.map((v: Item) => ({
-            ...v,
-            stock: Number(
-              (document.getElementById(`variant-${v.id}`) as HTMLInputElement)
-                ?.value ?? v.stock,
-            ),
-          }))
-        : sizes.map((size, index) => ({
-            sku: `${baseSku}-${index + 1}`,
-            size,
-            color: values.color,
-            stock: Number(values.initial_stock || 0),
-            price_cents: null,
-          })),
-    };
-    try {
-      const result = await payload(
-        await adminFetch(id ? `/api/products/${id}` : "/api/products", {
-          method: id ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        }),
-      );
-      setMessage("Produto salvo com sucesso.");
-      if (!id) window.location.href = `/admin/produtos/editar?id=${result.id}`;
-    } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Erro ao salvar");
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <form
-      onSubmit={submit}
-      className="mt-7 grid gap-6 xl:grid-cols-[1fr_340px]"
-    >
-      <div className="card grid gap-4 p-6 md:grid-cols-2">
-        <Input name="name" label="Nome" value={product.name} required wide />
-        <Input name="slug" label="Slug" value={product.slug} />
-        <Input name="sku" label="SKU base" value={product.sku} required />
-        <Select
-          name="brand_id"
-          label="Marca"
-          value={product.brand_id}
-          options={catalog.brands}
-        />
-        <Select
-          name="category_id"
-          label="Categoria"
-          value={product.category_id}
-          options={catalog.categories}
-        />
-        <Input
-          name="price"
-          label="Preço"
-          type="number"
-          step="0.01"
-          value={product.price_cents / 100}
-          required
-        />
-        <Input
-          name="compare_price"
-          label="Preço anterior"
-          type="number"
-          step="0.01"
-          value={product.compare_at_cents / 100}
-        />
-        <Input
-          name="cost"
-          label="Custo"
-          type="number"
-          step="0.01"
-          value={product.cost_cents / 100}
-        />
-        <Input name="color" label="Cor" value={product.color} required />
-        <Input name="finish" label="Acabamento" value={product.finish} />
-        <Input
-          name="shell_material"
-          label="Material"
-          value={product.shell_material}
-        />
-        <Input
-          name="weight_grams"
-          label="Peso (g)"
-          type="number"
-          value={product.weight_grams}
-        />
-        <label className="text-xs font-semibold md:col-span-2">
-          Descrição
-          <textarea
-            name="description"
-            required
-            defaultValue={product.description || ""}
-            className="mt-2 h-32 w-full rounded-xl border border-line p-3 text-sm"
-          />
-        </label>
-        <Input
-          name="image_url"
-          label="Imagem principal"
-          type="url"
-          value={product.images?.[0]?.url}
-          wide
-        />
-        {!id && (
-          <>
-            <Input
-              name="sizes"
-              label="Tamanhos separados por vírgula"
-              value="56 / S, 58 / M, 60 / L, 62 / XL"
-              wide
-            />
-            <Input
-              name="initial_stock"
-              label="Estoque inicial por tamanho"
-              type="number"
-              value="5"
-            />
-          </>
-        )}
-        {id && (
-          <div className="md:col-span-2">
-            <b className="text-sm">Variações e estoque</b>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {product.variants?.map((variant: Item) => (
-                <label
-                  className="rounded-xl border border-line p-3 text-xs"
-                  key={variant.id}
-                >
-                  {variant.size} · {variant.sku}
-                  <input
-                    id={`variant-${variant.id}`}
-                    type="number"
-                    min="0"
-                    defaultValue={variant.stock}
-                    className={`mt-2 ${field}`}
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-      <aside className="grid h-fit gap-4">
-        <div className="card p-5">
-          <b>Publicação</b>
-          {[
-            ["active", "Produto ativo"],
-            ["featured", "Produto em destaque"],
-            ["solar_visor", "Viseira solar"],
-            ["pinlock_ready", "Preparado para Pinlock"],
-          ].map(([name, title]) => (
-            <label className="mt-4 flex items-center gap-3 text-sm" key={name}>
-              <input
-                name={name}
-                type="checkbox"
-                defaultChecked={Boolean(product[name] ?? name === "active")}
-                className="size-4 accent-accent"
-              />
-              {title}
-            </label>
-          ))}
-          <button
-            disabled={busy}
-            className={`${button} mt-6 w-full bg-accent text-white`}
-          >
-            {busy ? (
-              <Loader2 className="animate-spin" size={16} />
-            ) : (
-              <Check size={16} />
-            )}
-            Salvar produto
-          </button>
-          {message && <p className="mt-3 text-xs text-muted">{message}</p>}
-        </div>
-        <Link
-          href="/admin/produtos"
-          className={`${button} border border-line bg-white`}
-        >
-          <ChevronLeft size={16} />
-          Voltar aos produtos
-        </Link>
-      </aside>
-    </form>
-  );
-}
-function Input({
-  name,
-  label,
-  value,
-  type = "text",
-  step,
-  required,
-  wide,
-}: {
-  name: string;
-  label: string;
-  value?: any;
-  type?: string;
-  step?: string;
-  required?: boolean;
-  wide?: boolean;
-}) {
-  const safeValue =
-    type === "number" && typeof value === "number" && !Number.isFinite(value)
-      ? ""
-      : (value ?? "");
-  return (
-    <label className={`text-xs font-semibold ${wide ? "md:col-span-2" : ""}`}>
-      {label}
-      <input
-        name={name}
-        type={type}
-        step={step}
-        required={required}
-        defaultValue={safeValue}
-        className={`mt-2 ${field}`}
-      />
-    </label>
-  );
-}
-function Select({
-  name,
-  label,
-  value,
-  options,
-}: {
-  name: string;
-  label: string;
-  value?: any;
-  options: Item[];
-}) {
-  return (
-    <label className="text-xs font-semibold">
-      {label}
-      <select
-        name={name}
-        defaultValue={value}
-        required
-        className={`mt-2 ${field}`}
-      >
-        <option value="">Selecione</option>
-        {options.map((item) => (
-          <option value={item.id} key={item.id}>
-            {item.name}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }

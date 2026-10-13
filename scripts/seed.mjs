@@ -60,6 +60,8 @@ const comments = [
 ];
 
 function id(result) { return Number(result.lastInsertRowid); }
+// Demo CPFs must pass the check-digit validation used at checkout.
+function cpfFrom(base) { const digits = String(base).padStart(9, "0").slice(0, 9).split("").map(Number); for (const length of [9, 10]) { const sum = digits.reduce((total, digit, index) => total + digit * (length + 1 - index), 0); const rest = (sum * 10) % 11; digits.push(rest === 10 ? 0 : rest); } return digits.join(""); }
 function slug(value) { return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""); }
 
 db.exec("BEGIN IMMEDIATE");
@@ -107,7 +109,7 @@ try {
   const adminSalt=randomBytes(16).toString("hex"); const adminPassword=`${adminSalt}:${scryptSync("Admin123!",adminSalt,64).toString("hex")}`;
   db.prepare("INSERT INTO admin_users(name,email,password_hash,role) VALUES(?,?,?,'admin')").run("Administrador Ridekit","admin@ridekit.com.br",adminPassword);
   const customerIds = customerNames.map((name, i) => {
-    const customerId = id(customerInsert.run(name, `${slug(name)}@example.com`, `${String(10000000000 + i * 123457).padStart(11,"0")}`, `(11) 9${String(80000000 + i * 713).padStart(8,"0")}`, demoPassword));
+    const customerId = id(customerInsert.run(name, `${slug(name)}@example.com`, cpfFrom(100000000 + i * 1234567), `(11) 9${String(80000000 + i * 713).padStart(8,"0")}`, demoPassword));
     addressInsert.run(customerId, "Casa", `01${String(100 + i).padStart(3,"0")}-000`, "Rua das Pilotas", String(100 + i), i % 2 ? "Apto 42" : null, "Centro", i % 3 ? "São Paulo" : "Campinas", "SP", 1);
     return customerId;
   });

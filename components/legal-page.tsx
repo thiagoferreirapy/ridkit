@@ -5,7 +5,7 @@ import { LEGAL_VERSION, PRIVACY_POLICY, TERMS_OF_USE } from "@/lib/legal-documen
 export function LegalPage({kind}:{kind:"privacy"|"terms"}) {
   const document=kind==="privacy"?PRIVACY_POLICY:TERMS_OF_USE;
   const blocks=document.split(/\n\s*\n/).map(block=>block.trim()).filter(Boolean);
-  return <main className="container-page max-w-4xl py-10 md:py-16">
+  return <section className="container-page max-w-4xl py-10 md:py-16">
     <div className="mb-8 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm leading-6 text-amber-950" role="note">
       A identificação e os canais oficiais da empresa ainda precisam ser preenchidos nos campos entre colchetes antes da publicação definitiva. Este texto também precisa de revisão jurídica.
     </div>
@@ -18,5 +18,5 @@ export function LegalPage({kind}:{kind:"privacy"|"terms"}) {
       })}
     </article>
     <p className="mt-5 text-xs text-muted">Versão registrada: {LEGAL_VERSION}</p>
-  </main>;
+  </section>;
 }
