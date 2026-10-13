@@ -64,6 +64,7 @@ export function initializeDatabase(db: DatabaseSync, schemaPath = path.join(proc
     db.exec("CREATE TABLE IF NOT EXISTS customer_coupons (customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,coupon_id INTEGER NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,redeemed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(customer_id,coupon_id)) STRICT");
     db.exec("CREATE TABLE IF NOT EXISTS account_closures (id INTEGER PRIMARY KEY AUTOINCREMENT,customer_id INTEGER NOT NULL UNIQUE REFERENCES customers(id),protocol TEXT NOT NULL UNIQUE,closed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP) STRICT");
     db.exec("CREATE TABLE IF NOT EXISTS legal_acceptances (id INTEGER PRIMARY KEY AUTOINCREMENT,customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,document_type TEXT NOT NULL CHECK(document_type IN ('terms','privacy')),version TEXT NOT NULL,context TEXT NOT NULL CHECK(context IN ('registration','checkout')),accepted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(customer_id,document_type,version,context)) STRICT");
+    db.exec("CREATE TABLE IF NOT EXISTS email_change_tokens (id INTEGER PRIMARY KEY AUTOINCREMENT,customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,new_email TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,expires_at TEXT NOT NULL,used_at TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP) STRICT");
     db.exec("CREATE TABLE IF NOT EXISTS retention_runs (id INTEGER PRIMARY KEY AUTOINCREMENT,executed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,summary_json TEXT NOT NULL) STRICT");
     db.exec("CREATE TABLE IF NOT EXISTS order_legal_acceptances (order_id INTEGER PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,customer_id INTEGER NOT NULL REFERENCES customers(id),terms_version TEXT NOT NULL,privacy_version TEXT NOT NULL,accepted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP) STRICT");
     const variantColumns = db.prepare("PRAGMA table_info(product_variants)").all() as { name:string }[];
@@ -77,6 +78,7 @@ export function initializeDatabase(db: DatabaseSync, schemaPath = path.join(proc
     if(!adminColumns.some(column=>column.name==="two_factor_enabled"))db.exec("ALTER TABLE admin_users ADD COLUMN two_factor_enabled INTEGER NOT NULL DEFAULT 0 CHECK(two_factor_enabled IN (0,1))");
     if(!adminColumns.some(column=>column.name==="recovery_codes_json"))db.exec("ALTER TABLE admin_users ADD COLUMN recovery_codes_json TEXT");
     if(!adminColumns.some(column=>column.name==="permissions_json"))db.exec("ALTER TABLE admin_users ADD COLUMN permissions_json TEXT");
+    if(!adminColumns.some(column=>column.name==="two_factor_last_counter"))db.exec("ALTER TABLE admin_users ADD COLUMN two_factor_last_counter INTEGER");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_idempotency ON orders(customer_id,idempotency_key) WHERE idempotency_key IS NOT NULL");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_provider_payment_id ON orders(provider_payment_id) WHERE provider_payment_id IS NOT NULL");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_asaas_customer_id ON customers(asaas_customer_id) WHERE asaas_customer_id IS NOT NULL");

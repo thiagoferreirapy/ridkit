@@ -13,9 +13,9 @@ import { WhatsAppIcon } from "@/components/whatsapp-icon";
 
 const formatMoney=(cents:number)=>(cents/100).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 
-export function Button({ children, href, variant = "primary", className = "", onClick }: {
+export function Button({ children, href, variant = "primary", className = "", onClick, disabled }: {
   children: React.ReactNode; href?: string; variant?: "primary" | "dark" | "outline" | "ghost";
-  className?: string; onClick?: () => void;
+  className?: string; onClick?: () => void; disabled?: boolean;
 }) {
   const styles = {
     primary: "bg-accent text-white hover:bg-accent-strong",
@@ -24,7 +24,7 @@ export function Button({ children, href, variant = "primary", className = "", on
     ghost: "bg-transparent text-ink hover:bg-canvas",
   }[variant];
   const cls = `focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-bold transition-colors ${styles} ${className}`;
-  return href ? <Link href={href} onClick={onClick} className={cls}>{children}</Link> : <button onClick={onClick} className={cls}>{children}</button>;
+  return href ? <Link href={href} onClick={onClick} className={cls}>{children}</Link> : <button onClick={onClick} disabled={disabled} className={`${cls} disabled:cursor-not-allowed disabled:opacity-60`}>{children}</button>;
 }
 
 export function Header() {

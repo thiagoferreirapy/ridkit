@@ -1,3 +1,4 @@
+import { STORE_NOW_SQL } from "@/lib/store-time";
 import { getDb } from "@/lib/db";
 import { apiError, created, ok, pagination, slugify } from "@/lib/api";
 import { productSchema } from "@/lib/schemas";
@@ -25,8 +26,8 @@ export async function GET(request: Request) {
     if (Number.isFinite(min) && min > 0) { where.push("p.price_cents >= ?"); params.push(Math.round(min*100)); }
     if (Number.isFinite(max) && max > 0) { where.push("p.price_cents <= ?"); params.push(Math.round(max*100)); }
     if (featured === "1") where.push("p.featured = 1");
-    if (offer === "1") where.push("p.compare_at_cents IS NOT NULL AND p.compare_at_cents > p.price_cents AND (p.offer_starts_at IS NULL OR datetime(p.offer_starts_at)<=CURRENT_TIMESTAMP) AND (p.offer_ends_at IS NULL OR datetime(p.offer_ends_at)>=CURRENT_TIMESTAMP)");
-    if (newest === "1") where.push("p.is_new=1 AND (p.launch_starts_at IS NULL OR datetime(p.launch_starts_at)<=CURRENT_TIMESTAMP) AND (p.launch_ends_at IS NULL OR datetime(p.launch_ends_at)>=CURRENT_TIMESTAMP)");
+    if (offer === "1") where.push(`p.compare_at_cents IS NOT NULL AND p.compare_at_cents > p.price_cents AND (p.offer_starts_at IS NULL OR datetime(p.offer_starts_at)<=${STORE_NOW_SQL}) AND (p.offer_ends_at IS NULL OR datetime(p.offer_ends_at)>=${STORE_NOW_SQL})`);
+    if (newest === "1") where.push(`p.is_new=1 AND (p.launch_starts_at IS NULL OR datetime(p.launch_starts_at)<=${STORE_NOW_SQL}) AND (p.launch_ends_at IS NULL OR datetime(p.launch_ends_at)>=${STORE_NOW_SQL})`);
     const sortMap:Record<string,string>={price_asc:"p.price_cents ASC",price_desc:"p.price_cents DESC",rating:"p.rating DESC",newest:"p.created_at DESC"};
     const order = newest === "1" ? "p.created_at DESC,p.id DESC" : sortMap[url.searchParams.get("sort")||""] || "p.featured DESC, p.id ASC";
     const db=getDb(); const whereSql=where.join(" AND ");
@@ -37,7 +38,9 @@ export async function GET(request: Request) {
       (CASE WHEN c.variation_type='size' THEN (SELECT GROUP_CONCAT(size,'|') FROM (SELECT DISTINCT pv.size AS size FROM product_variants pv WHERE pv.product_id=p.id AND pv.active=1 AND pv.size<>'Único' ORDER BY CASE pv.size WHEN '56 / S' THEN 1 WHEN '58 / M' THEN 2 WHEN '60 / L' THEN 3 WHEN '62 / XL' THEN 4 ELSE 5 END)) END) AS sizes_csv,
       COALESCE((SELECT SUM(stock-reserved_stock) FROM product_variants WHERE product_id=p.id AND active=1),0) AS available_stock
       FROM products p JOIN brands b ON b.id=p.brand_id JOIN categories c ON c.id=p.category_id
-      WHERE ${whereSql} ORDER BY ${order} LIMIT ? OFFSET ?`).all(...params,limit,offset);
+      WHERE ${whereSql} ORDER BY ${order} LIMIT ? OFFSET ?`).all(...params,limit,offset) as Record<string,unknown>[];
+    // Purchase cost is internal; only the admin catalog view may see it.
+    if(!adminView)for(const item of data)delete item.cost_cents;
     return ok({ items:data, pagination:{page,limit,total,pages:Math.ceil(total/limit)} });
   } catch(error) { return apiError(error); }
 }

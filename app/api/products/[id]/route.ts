@@ -5,10 +5,10 @@ import { requireAdminPermission } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 
-export async function GET(_request:Request,{params}:{params:Promise<{id:string}>}) {
-  try { const {id:idValue}=await params; const idOrSlug=/^\d+$/.test(idValue)?Number(idValue):idValue; const column=typeof idOrSlug==="number"?"p.id":"p.slug"; const db=getDb();
-    const product=db.prepare(`SELECT p.*,b.name AS brand,b.slug AS brand_slug,c.name AS category,c.slug AS category_slug,c.variation_type,c.variation_label FROM products p JOIN brands b ON b.id=p.brand_id JOIN categories c ON c.id=p.category_id WHERE ${column}=?`).get(idOrSlug) as Record<string,unknown>|undefined;
-    if(!product)throw new Error("NOT_FOUND"); const productId=Number(product.id);
+export async function GET(request:Request,{params}:{params:Promise<{id:string}>}) {
+  try { const {id:idValue}=await params; const adminView=new URL(request.url).searchParams.get("admin")==="1"; if(adminView)await requireAdminPermission("catalog.view"); const idOrSlug=/^\d+$/.test(idValue)?Number(idValue):idValue; const column=typeof idOrSlug==="number"?"p.id":"p.slug"; const db=getDb();
+    const product=db.prepare(`SELECT p.*,b.name AS brand,b.slug AS brand_slug,c.name AS category,c.slug AS category_slug,c.variation_type,c.variation_label FROM products p JOIN brands b ON b.id=p.brand_id JOIN categories c ON c.id=p.category_id WHERE ${column}=?${adminView?"":" AND p.active=1 AND p.publication_status='active'"}`).get(idOrSlug) as Record<string,unknown>|undefined;
+    if(!product)throw new Error("NOT_FOUND"); if(!adminView)delete product.cost_cents; const productId=Number(product.id);
     const reviews=db.prepare("SELECT r.id,r.rating,r.title,r.comment,r.verified,r.created_at,c.name AS customer FROM reviews r JOIN customers c ON c.id=r.customer_id WHERE r.product_id=? AND r.approved=1 ORDER BY r.created_at DESC LIMIT 20").all(productId) as Record<string,unknown>[];
     return ok({...product,images:db.prepare("SELECT id,url,alt,photographer,photographer_url,position FROM product_images WHERE product_id=? ORDER BY position").all(productId),variants:db.prepare("SELECT id,sku,size,color,stock,reserved_stock,price_cents,active FROM product_variants WHERE product_id=? ORDER BY id").all(productId),attributes:db.prepare("SELECT name,value FROM product_attributes WHERE product_id=? ORDER BY position,id").all(productId),size_chart:db.prepare("SELECT label,min_value,max_value,unit FROM category_size_chart WHERE category_id=? ORDER BY position,id").all(Number(product.category_id)),reviews:reviews.map(review=>({...review,images:db.prepare("SELECT url FROM review_images WHERE review_id=? ORDER BY position,id").all(Number(review.id))}))});
   } catch(error){return apiError(error);}
@@ -31,6 +31,5 @@ export async function PATCH(request:Request,{params}:{params:Promise<{id:string}
 }
 
 export async function DELETE(_request:Request,{params}:{params:Promise<{id:string}>}) {
-  await requireAdminPermission("catalog.manage");
-  try { const {id}=await params; const productId=parseId(id); const result=getDb().prepare("UPDATE products SET active=0,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(productId); if(!result.changes)throw new Error("NOT_FOUND"); return ok({id:productId,deleted:true,mode:"soft-delete"}); } catch(error){return apiError(error);}
+  try { await requireAdminPermission("catalog.manage"); const {id}=await params; const productId=parseId(id); const result=getDb().prepare("UPDATE products SET active=0,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(productId); if(!result.changes)throw new Error("NOT_FOUND"); return ok({id:productId,deleted:true,mode:"soft-delete"}); } catch(error){return apiError(error);}
 }

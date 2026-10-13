@@ -1,3 +1,4 @@
+import { parseStoreDate } from "@/lib/store-time";
 import { getDb } from "@/lib/db";
 import { getStoreSettings } from "@/lib/store-settings";
 
@@ -13,8 +14,8 @@ export function findFreeShippingRegion(address:ShippingAddress,method:ShippingMe
   const rules=getDb().prepare("SELECT id,name,cep_prefix,district,city,state,applies_to,starts_at,ends_at FROM free_shipping_regions WHERE active=1 ORDER BY id DESC").all() as FreeShippingRegion[];
   return rules.find(rule=>{
     if(method==="express"&&rule.applies_to!=="all")return false;
-    if(rule.starts_at&&new Date(rule.starts_at).getTime()>now.getTime())return false;
-    if(rule.ends_at&&new Date(rule.ends_at).getTime()<now.getTime())return false;
+    if(rule.starts_at&&parseStoreDate(rule.starts_at).getTime()>now.getTime())return false;
+    if(rule.ends_at&&parseStoreDate(rule.ends_at).getTime()<now.getTime())return false;
     if(rule.cep_prefix&&!digits(address.zip_code).startsWith(digits(rule.cep_prefix)))return false;
     if(rule.district&&normalize(address.district)!==normalize(rule.district))return false;
     if(rule.city&&normalize(address.city)!==normalize(rule.city))return false;

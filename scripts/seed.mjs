@@ -100,7 +100,7 @@ try {
   db.prepare("UPDATE products SET category_id=? WHERE lower(name) LIKE 'luva%'").run(glovesCategoryId);
   db.prepare(`UPDATE products SET is_new=1,launch_starts_at=datetime('now','-1 day'),launch_ends_at=datetime('now','+45 days') WHERE id IN (${productIds.slice(-8).map(()=>"?").join(",")})`).run(...productIds.slice(-8));
 
-  const customerInsert = db.prepare("INSERT INTO customers(name,email,cpf,phone,password_hash) VALUES(?,?,?,?,?)");
+  const customerInsert = db.prepare("INSERT INTO customers(name,email,cpf,phone,password_hash,email_verified_at) VALUES(?,?,?,?,?,CURRENT_TIMESTAMP)");
   const addressInsert = db.prepare("INSERT INTO addresses(customer_id,label,zip_code,street,number,complement,district,city,state,is_default) VALUES(?,?,?,?,?,?,?,?,?,?)");
   const customerNames = ["Carlos Silva","Ana Lima","João Souza","Camila Rocha","Rodrigo Alves","Marina Costa","Lucas Martins","Beatriz Melo","Felipe Santos","Juliana Freitas","Rafael Nunes","Larissa Gomes"];
   const demoSalt=randomBytes(16).toString("hex"); const demoPassword=`${demoSalt}:${scryptSync("Ridekit123!",demoSalt,64).toString("hex")}`;

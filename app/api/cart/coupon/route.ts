@@ -4,7 +4,7 @@ import { getDb } from "@/lib/db";
 import { activeCustomerCoupons,bestCoupon,evaluateCoupon,redeemCoupon,requireOwnedApplicableCoupon,type CouponItem } from "@/lib/coupons";
 import { getStoreSettings } from "@/lib/store-settings";
 import { requireUser } from "@/lib/auth";
-import { assertRateLimit } from "@/lib/rate-limit";
+import { assertRateLimit,assertRateLimitFor } from "@/lib/rate-limit";
 
 export const runtime="nodejs";
 const sessionSchema=z.object({session_id:z.string().min(6).max(120)});
@@ -32,7 +32,7 @@ export async function GET(request:Request){
 export async function POST(request:Request){
   try{
     assertRateLimit(request,"redeem-coupon",15,10*60_000);
-    const user=await requireUser(),value=sessionSchema.extend({code:z.string().trim().min(1).max(40),select:z.boolean().optional().default(false)}).parse(await request.json()),db=getDb(),cart=cartForSession(value.session_id,user.id);
+    const user=await requireUser();assertRateLimitFor("redeem-coupon",String(user.id),20,10*60_000);const value=sessionSchema.extend({code:z.string().trim().min(1).max(40),select:z.boolean().optional().default(false)}).parse(await request.json()),db=getDb(),cart=cartForSession(value.session_id,user.id);
     const coupon=redeemCoupon(db,user.id,value.code);
     let applied=false;
     if(cart){const items=cartItems(cart.id),subtotal=items.reduce((sum,item)=>sum+item.price_cents*item.quantity,0),settings=getStoreSettings(),shipping=subtotal>=settings.free_shipping_threshold_cents?0:settings.standard_shipping_cents;

@@ -22,6 +22,21 @@ const nextConfig: NextConfig = {
       {key:"Referrer-Policy",value:"strict-origin-when-cross-origin"},
       {key:"Permissions-Policy",value:"camera=(), microphone=(), geolocation=()"},
       {key:"Cross-Origin-Opener-Policy",value:"same-origin"},
+      // Browsers ignore HSTS over plain HTTP, so this is harmless on the LAN and active once served over HTTPS.
+      {key:"Strict-Transport-Security",value:"max-age=31536000; includeSubDomains"},
+      // Report-only until violations are reviewed; switch the key to Content-Security-Policy to enforce.
+      {key:"Content-Security-Policy-Report-Only",value:[
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob: https://images.unsplash.com",
+        "font-src 'self'",
+        "connect-src 'self'",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "object-src 'none'",
+      ].join("; ")},
     ]}];
   },
 };

@@ -1,5 +1,9 @@
 import { z } from "zod";
-const imageLocation=z.union([z.string().url(),z.string().regex(/^\/uploads\/[a-zA-Z0-9._-]+$/,"Imagem inválida")]);
+
+// z.string().url() accepts javascript: and data: URLs; anything rendered as a link or image must be http(s) or a local path.
+export const httpUrl=z.string().trim().max(2048).url().refine(value=>/^https?:\/\//i.test(value),"Use um endereço http(s)");
+export const linkTarget=z.string().trim().min(1).max(300).refine(value=>/^\/(?!\/)/.test(value)||/^https?:\/\//i.test(value),"Use um caminho interno (/...) ou um endereço http(s)");
+export const imageLocation=z.union([httpUrl,z.string().regex(/^\/uploads\/[a-zA-Z0-9._-]+$/,"Imagem inválida")]);
 
 export const productSchema = z.object({
   brand_id: z.coerce.number().int().positive(), category_id: z.coerce.number().int().positive(),
@@ -14,13 +18,13 @@ export const productSchema = z.object({
   publication_status: z.enum(["draft","active","archived"]).default("active"), seo_title:z.string().trim().max(70).optional().nullable(),
   seo_description:z.string().trim().max(170).optional().nullable(),seo_image_url:imageLocation.optional().nullable(),
   active: z.coerce.number().int().min(0).max(1).default(1),
-  images: z.array(z.object({ url: imageLocation, alt: z.string().min(2), photographer: z.string().optional(), photographer_url: z.string().url().optional() })).default([]),
+  images: z.array(z.object({ url: imageLocation, alt: z.string().min(2), photographer: z.string().optional(), photographer_url: httpUrl.optional() })).default([]),
   attributes: z.array(z.object({name:z.string().trim().min(1).max(80),value:z.string().trim().min(1).max(300)})).default([]),
   variants: z.array(z.object({ sku: z.string().min(3), size: z.string().min(1), color: z.string().min(2), stock: z.coerce.number().int().nonnegative(), price_cents: z.coerce.number().int().nonnegative().nullable().optional() })).min(1),
 });
 export const productPatchSchema = productSchema.omit({ images: true, variants: true, attributes:true }).partial();
 export const adminProductPatchSchema = productPatchSchema.extend({
-  images: z.array(z.object({ id:z.coerce.number().int().positive().optional(),url:imageLocation,alt:z.string().min(2),photographer:z.string().optional().nullable(),photographer_url:z.string().url().optional().nullable() })).optional(),
+  images: z.array(z.object({ id:z.coerce.number().int().positive().optional(),url:imageLocation,alt:z.string().min(2),photographer:z.string().optional().nullable(),photographer_url:httpUrl.optional().nullable() })).optional(),
   variants: z.array(z.object({ id:z.coerce.number().int().positive().optional(),sku:z.string().min(3),size:z.string().min(1),color:z.string().min(2),stock:z.coerce.number().int().nonnegative(),reserved_stock:z.coerce.number().int().nonnegative().default(0),price_cents:z.coerce.number().int().nonnegative().nullable().optional(),active:z.coerce.number().int().min(0).max(1).default(1) })).optional(),
   attributes: z.array(z.object({name:z.string().trim().min(1).max(80),value:z.string().trim().min(1).max(300)})).optional(),
 });

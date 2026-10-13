@@ -1,7 +1,11 @@
 import { getDb } from "@/lib/db";
 import { apiError, ok } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { z } from "zod";
+import { requireUser,verifyPassword } from "@/lib/auth";
 import { activeCustomerCoupons } from "@/lib/coupons";
+import { sendEmailChangeConfirmation } from "@/lib/email-verification";
+import { appUrl } from "@/lib/env";
+import { assertRateLimitFor } from "@/lib/rate-limit";
 
 export const runtime="nodejs";
 
@@ -21,9 +25,23 @@ export async function GET(){
   }catch(error){return apiError(error);}
 }
 
+const profileSchema=z.object({name:z.string().trim().min(2,"Informe seu nome").max(120),email:z.string().trim().toLowerCase().email("Informe um e-mail válido").max(160),phone:z.string().trim().max(20).optional().default(""),current_password:z.string().max(128).optional()});
+
 export async function PATCH(request:Request){
-  try{const customerId=(await requireUser()).id;const body=await request.json();const name=String(body.name||"").trim();const email=String(body.email||"").trim().toLowerCase();const phone=String(body.phone||"").trim();if(name.length<2||!email.includes("@"))throw new Error("VALIDATION:Preencha nome e e-mail válidos");getDb().prepare("UPDATE customers SET name=?,email=?,phone=? WHERE id=?").run(name,email,phone||null,customerId);return ok({saved:true});}
-  catch(error){if(error instanceof Error&&/UNIQUE/.test(error.message))return apiError(new Error("CONFLICT:Este e-mail já está em uso"));return apiError(error);}
+  try{
+    const user=await requireUser(),value=profileSchema.parse(await request.json()),db=getDb();
+    const current=db.prepare("SELECT name,email,password_hash FROM customers WHERE id=?").get(user.id) as {name:string;email:string;password_hash:string|null}|undefined;
+    if(!current)throw new Error("NOT_FOUND");
+    db.prepare("UPDATE customers SET name=?,phone=? WHERE id=?").run(value.name,value.phone.replace(/\D/g,"")||null,user.id);
+    if(value.email===current.email.toLowerCase())return ok({saved:true});
+    // Changing the login e-mail is an account takeover vector: confirm the password and prove ownership of the new address.
+    assertRateLimitFor("email-change",String(user.id),5,60*60_000);
+    if(!current.password_hash||!value.current_password||!verifyPassword(value.current_password,current.password_hash))throw new Error("BAD_REQUEST:Informe sua senha atual para trocar o e-mail.");
+    if(db.prepare("SELECT 1 FROM customers WHERE lower(email)=? AND id<>?").get(value.email,user.id))throw new Error("CONFLICT:Este e-mail já está em uso");
+    const delivery=await sendEmailChangeConfirmation({id:user.id,name:value.name},value.email,appUrl(request));
+    return ok({saved:true,email_change_pending:value.email,email_sent:delivery.sent});
+  }
+  catch(error){return apiError(error);}
 }
 
 export async function POST(request:Request){

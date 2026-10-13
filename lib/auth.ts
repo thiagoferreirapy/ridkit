@@ -1,10 +1,11 @@
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { getDb } from "@/lib/db";
+import { requireSecret } from "@/lib/env";
 
 export const ACCESS_COOKIE="ridekit_access"; export const REFRESH_COOKIE="ridekit_refresh";
 const ACCESS_SECONDS=15*60; const REFRESH_SECONDS=30*24*60*60;
-const secret=()=>{const value=process.env.JWT_SECRET||"ridekit-development-secret-change-before-production";if(process.env.NODE_ENV==="production"&&!process.env.JWT_SECRET)throw new Error("JWT_SECRET não configurado");return value;};
+const secret=()=>requireSecret("JWT_SECRET","ridekit-development-secret-change-before-production");
 const encode=(value:string|Buffer)=>Buffer.from(value).toString("base64url");
 export type AuthUser={id:number;name:string;email:string};
 export function hashPassword(password:string){const salt=randomBytes(16).toString("hex");return `${salt}:${scryptSync(password,salt,64).toString("hex")}`;}

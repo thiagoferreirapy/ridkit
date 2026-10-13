@@ -51,7 +51,7 @@ export function AdminProductFormV2({ id }: { id?: string }) {
   useEffect(() => {
     Promise.all([
       fetch("/api/catalog").then(json),
-      id ? fetch(`/api/products/${id}`).then(json) : Promise.resolve({}),
+      id ? fetch(`/api/products/${id}?admin=1`).then(json) : Promise.resolve({}),
     ]).then(([catalogData, productData]) => {
       setCatalog(catalogData);
       setProduct(productData);

@@ -1,10 +1,11 @@
+import { STORE_NOW_SQL } from "./store-time.ts";
 import type { DatabaseSync } from "node:sqlite";
 
 export type CouponRule={id:number;code:string;description:string|null;discount_type:"percent"|"fixed"|"shipping";discount_value:number;min_order_cents:number;scope_type:"all"|"category"|"product";scope_value:string|null;usage_limit:number|null;used_count:number;ends_at:string|null};
 export type CouponItem={product_id:number;category_id:number;price_cents:number;quantity:number};
 export type CouponEvaluation={coupon:CouponRule;eligibleSubtotalCents:number;missingCents:number;productCents:number;shippingCents:number;totalCents:number;netSavingsCents:number};
 
-const activeSql="c.active=1 AND (c.starts_at IS NULL OR c.starts_at<=CURRENT_TIMESTAMP) AND (c.ends_at IS NULL OR c.ends_at>=CURRENT_TIMESTAMP) AND (c.usage_limit IS NULL OR c.used_count<c.usage_limit)";
+const activeSql=`c.active=1 AND (c.starts_at IS NULL OR datetime(c.starts_at)<=${STORE_NOW_SQL}) AND (c.ends_at IS NULL OR datetime(c.ends_at)>=${STORE_NOW_SQL}) AND (c.usage_limit IS NULL OR c.used_count<c.usage_limit)`;
 const selectedColumns="c.id,c.code,c.description,c.discount_type,c.discount_value,c.min_order_cents,c.scope_type,c.scope_value,c.usage_limit,c.used_count,c.ends_at";
 const money=(cents:number)=>(cents/100).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 

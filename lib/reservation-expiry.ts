@@ -1,8 +1,9 @@
+import { STORE_NOW_SQL } from "@/lib/store-time";
 import { getDb } from "@/lib/db";
 import { logger } from "@/lib/logger";
 
 export function expireOrphanReservations(adminId?:number){
-  const db=getDb(),orders=db.prepare("SELECT id,coupon_id FROM orders WHERE status='pending' AND payment_status='pending' AND pix_expires_at IS NOT NULL AND datetime(pix_expires_at)<=CURRENT_TIMESTAMP").all() as {id:number;coupon_id:number|null}[];
+  const db=getDb(),orders=db.prepare(`SELECT id,coupon_id FROM orders WHERE status='pending' AND payment_status='pending' AND pix_expires_at IS NOT NULL AND datetime(pix_expires_at)<=${STORE_NOW_SQL}`).all() as {id:number;coupon_id:number|null}[];
   if(!orders.length)return 0;
   db.exec("BEGIN IMMEDIATE");
   try{

@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS customers (
   phone TEXT,
   asaas_customer_id TEXT UNIQUE,
   password_hash TEXT,
-  email_verified_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  email_verified_at TEXT,
   closed_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) STRICT;

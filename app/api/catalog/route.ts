@@ -1,3 +1,4 @@
+import { STORE_NOW_SQL } from "@/lib/store-time";
 import { getDb } from "@/lib/db";
 import { ok } from "@/lib/api";
 
@@ -11,8 +12,8 @@ export function GET(request:Request) { const db=getDb();
   categories:db.prepare("SELECT c.*,COUNT(DISTINCT p.id) AS product_count,CASE WHEN c.variation_type='size' THEN 1 ELSE 0 END AS has_sizes FROM categories c LEFT JOIN products p ON p.category_id=c.id AND p.active=1 AND p.publication_status='active' WHERE c.active=1 GROUP BY c.id ORDER BY c.sort_order,c.name").all(),
   sizes:db.prepare("SELECT v.size,COUNT(DISTINCT v.product_id) AS product_count FROM product_variants v JOIN products p ON p.id=v.product_id WHERE v.active=1 AND p.active=1 AND p.publication_status='active' AND v.size<>'Único' GROUP BY v.size ORDER BY CASE v.size WHEN '56 / S' THEN 1 WHEN '58 / M' THEN 2 WHEN '60 / L' THEN 3 WHEN '62 / XL' THEN 4 ELSE 5 END").all(),
   filter_products:db.prepare(`SELECT p.id,p.price_cents,p.featured,
-    CASE WHEN p.compare_at_cents IS NOT NULL AND p.compare_at_cents>p.price_cents AND (p.offer_starts_at IS NULL OR datetime(p.offer_starts_at)<=CURRENT_TIMESTAMP) AND (p.offer_ends_at IS NULL OR datetime(p.offer_ends_at)>=CURRENT_TIMESTAMP) THEN 1 ELSE 0 END AS on_sale,
-    CASE WHEN p.is_new=1 AND (p.launch_starts_at IS NULL OR datetime(p.launch_starts_at)<=CURRENT_TIMESTAMP) AND (p.launch_ends_at IS NULL OR datetime(p.launch_ends_at)>=CURRENT_TIMESTAMP) THEN 1 ELSE 0 END AS is_new,
+    CASE WHEN p.compare_at_cents IS NOT NULL AND p.compare_at_cents>p.price_cents AND (p.offer_starts_at IS NULL OR datetime(p.offer_starts_at)<=${STORE_NOW_SQL}) AND (p.offer_ends_at IS NULL OR datetime(p.offer_ends_at)>=${STORE_NOW_SQL}) THEN 1 ELSE 0 END AS on_sale,
+    CASE WHEN p.is_new=1 AND (p.launch_starts_at IS NULL OR datetime(p.launch_starts_at)<=${STORE_NOW_SQL}) AND (p.launch_ends_at IS NULL OR datetime(p.launch_ends_at)>=${STORE_NOW_SQL}) THEN 1 ELSE 0 END AS is_new,
     c.slug AS category_slug,b.slug AS brand_slug,
     (CASE WHEN c.variation_type='size' THEN (SELECT GROUP_CONCAT(size,'|') FROM (SELECT DISTINCT pv.size AS size FROM product_variants pv WHERE pv.product_id=p.id AND pv.active=1 AND pv.size<>'Único')) END) AS sizes_csv
     FROM products p JOIN categories c ON c.id=p.category_id JOIN brands b ON b.id=p.brand_id WHERE p.active=1 AND p.publication_status='active' AND (${search.sql})`).all(...search.params),

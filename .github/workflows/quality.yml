@@ -26,6 +26,8 @@ jobs:
         env:
           JWT_SECRET: ci-customer-secret-with-at-least-32-bytes
           ADMIN_JWT_SECRET: ci-admin-secret-with-at-least-32-bytes
+          NEWSLETTER_SECRET: ci-newsletter-secret-with-at-least-32-bytes
+          APP_URL: http://localhost:3000
       - name: Wait for application
         run: for attempt in {1..30}; do curl --fail --silent http://localhost:3000/api/health && exit 0; sleep 1; done; cat /tmp/ridekit.log; exit 1
       - run: pnpm test
