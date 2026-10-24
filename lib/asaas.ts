@@ -1,5 +1,5 @@
 type AsaasCustomer={id:string};
-export type AsaasPayment={id:string;status:string;value?:number;paymentDate?:string;confirmedDate?:string};
+export type AsaasPayment={id:string;status:string;value?:number;paymentDate?:string;confirmedDate?:string;deleted?:boolean};
 export type AsaasPixQrCode={encodedImage:string;payload:string;expirationDate:string};
 
 const apiUrl=()=>process.env.ASAAS_API_URL||"https://api-sandbox.asaas.com/v3";
@@ -11,7 +11,7 @@ async function asaasRequest<T>(path:string,init?:RequestInit):Promise<T>{
   const body=await response.json().catch(()=>null) as {errors?:{description?:string}[]}|null;
   if(!response.ok){
     const detail=body?.errors?.map(item=>item.description).filter(Boolean).join(" ")||"O Asaas não aceitou a operação";
-    throw new Error(`BAD_REQUEST:${detail}`);
+    throw Object.assign(new Error(`BAD_REQUEST:${detail}`),{status:response.status});
   }
   return body as T;
 }
@@ -28,3 +28,15 @@ export async function createAsaasPixPayment(value:{customer:string;orderId:numbe
 
 export async function getAsaasPixQrCode(paymentId:string){return asaasRequest<AsaasPixQrCode>(`/payments/${encodeURIComponent(paymentId)}/pixQrCode`);}
 export async function getAsaasPayment(paymentId:string){return asaasRequest<AsaasPayment>(`/payments/${encodeURIComponent(paymentId)}`);}
+
+// Deletes a pending charge so its Pix QR stops being payable. "paid" means Asaas already received it: the webhook settles the order.
+export async function cancelAsaasPayment(paymentId:string):Promise<"deleted"|"paid">{
+  try{await asaasRequest(`/payments/${encodeURIComponent(paymentId)}`,{method:"DELETE"});return "deleted";}
+  catch(error){
+    if((error as {status?:number}).status===404)return "deleted";
+    const payment=await getAsaasPayment(paymentId).catch(()=>null);
+    if(payment?.deleted)return "deleted";
+    if(payment&&["RECEIVED","CONFIRMED","RECEIVED_IN_CASH"].includes(payment.status))return "paid";
+    throw error;
+  }
+}

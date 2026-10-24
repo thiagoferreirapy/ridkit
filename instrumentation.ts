@@ -2,7 +2,7 @@ export async function register(){
   if(process.env.NEXT_RUNTIME!=="nodejs")return;
   const {expireOrphanReservations}=await import("@/lib/reservation-expiry");
   const {logger}=await import("@/lib/logger");
-  const run=()=>{try{expireOrphanReservations()}catch(error){logger.error("reservations.scheduler_failed",error)}};
+  const run=()=>{expireOrphanReservations().catch(error=>logger.error("reservations.scheduler_failed",error))};
   run();
   const timer=setInterval(run,5*60_000);
   timer.unref();

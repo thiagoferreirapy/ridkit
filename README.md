@@ -58,7 +58,7 @@ See [.env.example](./.env.example).
 
 ## How orders work
 
-Checkout reserves stock in one transaction. Every later change (payment webhook, admin, reconciliation, the 5-minute expiry job in `instrumentation.ts`) goes through `lib/order-state.ts`, which owns stock, reservations and coupon usage. Details and the allowed transitions are in [API.md](./API.md#order-lifecycle).
+Checkout reserves stock in one transaction. Every later change (payment webhook, admin, reconciliation, the 5-minute expiry job in `instrumentation.ts`) goes through `lib/order-state.ts`, which owns stock, reservations and coupon usage. Details and the allowed transitions are in [API.md](./API.md#order-lifecycle). After each expiry run, the same job deletes the Asaas charge of every cancelled, unpaid order so its Pix QR stops accepting payment; failures are retried on later runs and, after 10 attempts, flagged on the order for an admin.
 
 ## Operations notes
 
