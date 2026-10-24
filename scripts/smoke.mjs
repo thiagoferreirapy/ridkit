@@ -30,7 +30,7 @@ await check("rota inexistente responde 404", async () => { await get("/pagina-qu
 await check("produto inexistente responde 404", async () => { await get("/produto/produto-que-nao-existe-smoke", 404); });
 await check("robots.txt", async () => assert((await (await get("/robots.txt")).text()).toLowerCase().includes("user-agent"), "robots.txt inválido"));
 await check("sitemap.xml", async () => assert((await (await get("/sitemap.xml")).text()).includes("<urlset"), "sitemap inválido"));
-await check("cabeçalhos de segurança", async () => { const headers = (await get("/")).headers; for (const name of ["x-content-type-options", "x-frame-options", "strict-transport-security", "content-security-policy-report-only"]) assert(headers.get(name), `${name} ausente`); });
+await check("cabeçalhos de segurança", async () => { const headers = (await get("/")).headers; for (const name of ["x-content-type-options", "x-frame-options", "strict-transport-security", "content-security-policy"]) assert(headers.get(name), `${name} ausente`); });
 
 for (const [name, path] of [["conta do cliente", "/api/account"], ["pagamento Pix", "/api/payments/pix?order_id=1"], ["pedidos (admin)", "/api/orders"], ["dashboard (admin)", "/api/dashboard"]]) {
   await check(`${name} protegido`, async () => { await get(path, 401); });

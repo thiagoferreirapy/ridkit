@@ -7,7 +7,7 @@ import { audit } from "@/lib/audit";
 import { requireUser } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { assertRateLimit } from "@/lib/rate-limit";
-import { calculateShipping } from "@/lib/shipping";
+import { calculateShipping,resolveShippingAddress } from "@/lib/shipping";
 import { getStoreSettings } from "@/lib/store-settings";
 
 export const runtime="nodejs";
@@ -26,7 +26,7 @@ export async function POST(request:Request){try{
   if(!cart)throw new Error("BAD_REQUEST:Carrinho vazio");
   const items=db.prepare(`SELECT p.name,b.name brand,p.slug,v.sku,v.size,v.color,ci.quantity,COALESCE(v.price_cents,p.price_cents) unit_price_cents,COALESCE(v.price_cents,p.price_cents)*ci.quantity total_cents FROM cart_items ci JOIN product_variants v ON v.id=ci.variant_id JOIN products p ON p.id=v.product_id JOIN brands b ON b.id=p.brand_id WHERE ci.cart_id=? ORDER BY ci.id`).all(cart.id) as {name:string;brand:string;slug:string;sku:string;size:string;color:string;quantity:number;unit_price_cents:number;total_cents:number}[];
   if(!items.length)throw new Error("BAD_REQUEST:Carrinho vazio");
-  const subtotal=items.reduce((sum,item)=>sum+item.total_cents,0),quote=calculateShipping(subtotal,address,"standard"),shipping=quote.shipping_cents,total=subtotal+shipping,requestNumber=`WA-${Date.now().toString(36).toUpperCase()}-${randomBytes(2).toString("hex").toUpperCase()}`,origin=appUrl(request);
+  const subtotal=items.reduce((sum,item)=>sum+item.total_cents,0),quote=calculateShipping(subtotal,await resolveShippingAddress(address.zip_code),"standard"),shipping=quote.shipping_cents,total=subtotal+shipping,requestNumber=`WA-${Date.now().toString(36).toUpperCase()}-${randomBytes(2).toString("hex").toUpperCase()}`,origin=appUrl(request);
   const fullAddress=`${address.street}, ${address.number}${address.complement?` · ${address.complement}`:""} · ${address.district} · ${address.city}/${address.state} · CEP ${address.zip_code}`;
   const lines=[settings.whatsapp_message_intro,"",`*Solicitação ${requestNumber}*`,`Cliente: ${customer.name}`,customer.phone?`Telefone: ${customer.phone}`:"",`E-mail: ${customer.email}`,`Entrega: ${fullAddress}`,"","*Itens:*",...items.flatMap((item,index)=>[`${index+1}. ${item.brand} ${item.name}`,`   ${item.color} · ${item.size} · SKU ${item.sku}`,`   ${item.quantity} x ${money(item.unit_price_cents)} = ${money(item.total_cents)}`,`   ${origin}/produto/${item.slug}`]),"",`Subtotal: ${money(subtotal)}`,`Frete estimado: ${shipping?money(shipping):"Grátis"}`,quote.rule?`Promoção aplicada: ${quote.rule.name}`:"",`*Total estimado: ${money(total)}*`,value.notes?`Observações: ${value.notes}`:"","Valores e disponibilidade serão confirmados no atendimento."].filter(Boolean),message=lines.join("\n"),snapshot={items,address,customer:{id:customer.id,name:customer.name,email:customer.email,phone:customer.phone},shipping_rule:quote.rule};
   const result=db.prepare("INSERT INTO whatsapp_requests(request_number,session_id,customer_name,customer_phone,customer_email,customer_zip_code,shipping_rule_id,shipping_rule_name,notes,subtotal_cents,shipping_cents,total_cents,items_count,snapshot_json,message) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").run(requestNumber,value.session_id,customer.name,customer.phone,customer.email,address.zip_code,quote.rule?.id||null,quote.rule?.name||null,value.notes||null,subtotal,shipping,total,items.reduce((sum,item)=>sum+item.quantity,0),JSON.stringify(snapshot),message);

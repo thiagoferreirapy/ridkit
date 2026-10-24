@@ -24,12 +24,13 @@ const nextConfig: NextConfig = {
       {key:"Cross-Origin-Opener-Policy",value:"same-origin"},
       // Browsers ignore HSTS over plain HTTP, so this is harmless on the LAN and active once served over HTTPS.
       {key:"Strict-Transport-Security",value:"max-age=31536000; includeSubDomains"},
-      // Report-only until violations are reviewed; switch the key to Content-Security-Policy to enforce.
-      {key:"Content-Security-Policy-Report-Only",value:[
+      // Enforced in production; `next dev` needs eval for React debugging, so it only reports there.
+      {key:process.env.NODE_ENV==="production"?"Content-Security-Policy":"Content-Security-Policy-Report-Only",value:[
         "default-src 'self'",
         "script-src 'self' 'unsafe-inline'",
         "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: blob: https://images.unsplash.com",
+        // Admins can point product and banner images at any https host.
+        "img-src 'self' data: blob: https:",
         "font-src 'self'",
         "connect-src 'self'",
         "frame-ancestors 'none'",

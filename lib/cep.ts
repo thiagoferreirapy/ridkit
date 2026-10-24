@@ -7,7 +7,7 @@ export async function lookupCep(value:string):Promise<CepAddress>{
 }
 
 async function viaCep(cep:string):Promise<CepAddress>{
-  const response=await fetch(`https://viacep.com.br/ws/${cep}/json/`,{next:{revalidate:86400}});
+  const response=await fetch(`https://viacep.com.br/ws/${cep}/json/`,{next:{revalidate:86400},signal:AbortSignal.timeout(5000)});
   if(!response.ok)throw new Error("ViaCEP indisponível");
   const data=await response.json() as {erro?:boolean;cep?:string;logradouro?:string;complemento?:string;bairro?:string;localidade?:string;uf?:string};
   if(data.erro)throw new Error("NOT_FOUND");
@@ -15,7 +15,7 @@ async function viaCep(cep:string):Promise<CepAddress>{
 }
 
 async function brasilApi(cep:string):Promise<CepAddress>{
-  const response=await fetch(`https://brasilapi.com.br/api/cep/v1/${cep}`,{next:{revalidate:86400}});
+  const response=await fetch(`https://brasilapi.com.br/api/cep/v1/${cep}`,{next:{revalidate:86400},signal:AbortSignal.timeout(5000)});
   if(response.status===404)throw new Error("NOT_FOUND");
   if(!response.ok)throw new Error("BAD_REQUEST:Serviços de CEP indisponíveis");
   const data=await response.json() as {cep:string;street?:string;neighborhood?:string;city?:string;state?:string};

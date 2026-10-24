@@ -26,7 +26,7 @@ pnpm dev
 | GET | `/api/products/:id-or-slug` | Published product detail, variants, attributes, size chart, reviews |
 | GET, POST, DELETE | `/api/search` | Suggestions, recent searches per `session_id`, popular searches |
 | GET | `/api/hero-slides` | Active home banners |
-| GET | `/api/store-settings` | Public store settings (purchase mode, shipping, Pix discount) |
+| GET | `/api/store-settings` | Public store settings (purchase mode, shipping, Pix discount, company info, logo, social links) |
 | GET | `/api/cep/:cep` | Address lookup (ViaCEP with BrasilAPI fallback) |
 | GET | `/api/shipping/quote` | Shipping quote by CEP, subtotal and method |
 | GET, POST, PATCH, DELETE | `/api/cart` | Cart by `session_id`; a cart linked to an account is only visible to it |
@@ -139,6 +139,7 @@ Every admin route checks a permission (`lib/admin-permissions.ts`) and re-reads 
 | GET, POST, PATCH, DELETE | `/api/shipping-regions` | Regional free-shipping rules |
 | GET, POST | `/api/newsletter-campaigns` | Segmented campaigns (`{{home_url}}` is replaced in the HTML) |
 | GET, PATCH | `/api/store-settings` | Store configuration |
+| PATCH | `/api/store-info` | Company info: legal name, CNPJ, contacts, address, logo, social links (`settings.manage`) |
 | GET, PATCH | `/api/whatsapp-checkout` | WhatsApp sales requests |
 | POST | `/api/uploads` | Image upload to `public/uploads` |
 

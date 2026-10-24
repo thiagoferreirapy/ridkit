@@ -65,4 +65,4 @@ Checkout reserves stock in one transaction. Every later change (payment webhook,
 - Rate limits and the reservation scheduler live in process memory: run a single instance, or move them to a shared store before scaling out.
 - Uploaded images are written to `public/uploads` (not versioned); include that folder in backups, or move uploads to object storage if the host has an ephemeral disk.
 - The Content-Security-Policy ships in report-only mode; review violations, then switch it to `Content-Security-Policy` in `next.config.ts`.
-- Schema changes are applied at startup by `initializeDatabase` in `lib/db.ts` (additive and idempotent), shared by the app, scripts and tests.
+- Schema changes are applied at startup by `initializeDatabase` in `lib/db.ts`, shared by the app, scripts and tests. New changes go in a numbered file `data/migrations/NNN-description.sql` (next free number, starting at 002); each runs once in a transaction and is recorded in `schema_migrations`.

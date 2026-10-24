@@ -1,14 +1,17 @@
 "use client";
 
+import { useShop } from "@/components/shop-state";
 import { LEGAL_VERSION, PRIVACY_POLICY, TERMS_OF_USE } from "@/lib/legal-documents";
+import { fillLegalDocument } from "@/lib/store-info";
 
 export function LegalPage({kind}:{kind:"privacy"|"terms"}) {
-  const document=kind==="privacy"?PRIVACY_POLICY:TERMS_OF_USE;
+  const {settings}=useShop();
+  const {text:document,missing}=fillLegalDocument(kind==="privacy"?PRIVACY_POLICY:TERMS_OF_USE,settings);
   const blocks=document.split(/\n\s*\n/).map(block=>block.trim()).filter(Boolean);
   return <section className="container-page max-w-4xl py-10 md:py-16">
-    <div className="mb-8 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm leading-6 text-amber-950" role="note">
-      A identificação e os canais oficiais da empresa ainda precisam ser preenchidos nos campos entre colchetes antes da publicação definitiva. Este texto também precisa de revisão jurídica.
-    </div>
+    {missing.length>0&&<div className="mb-8 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm leading-6 text-amber-950" role="note">
+      Ainda faltam dados da empresa neste documento ({missing.join(", ")}). Eles são preenchidos em Admin → Dados da loja.
+    </div>}
     <article className="card p-6 md:p-10">
       {blocks.map((block,index)=>{
         if(index===0)return <h1 className="text-3xl font-semibold leading-tight" key={index}>{block}</h1>;

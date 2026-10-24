@@ -8,7 +8,7 @@ import { requireAdminPermission } from "@/lib/admin-auth";
 import { requireUser } from "@/lib/auth";
 import { sendEmail } from "@/lib/email";
 import { getStoreSettings } from "@/lib/store-settings";
-import { calculateShipping, type ShippingMethod } from "@/lib/shipping";
+import { calculateShipping,resolveShippingAddress,type ShippingMethod } from "@/lib/shipping";
 import { assertLegalAcceptance,recordLegalAcceptance,recordOrderLegalAcceptance } from "@/lib/legal-acceptance";
 import { validateCheckoutIdentity } from "@/lib/checkout-calculations";
 import { bestCoupon,requireOwnedApplicableCoupon,type CouponItem } from "@/lib/coupons";
@@ -37,7 +37,7 @@ function orderFingerprint(value:z.infer<typeof orderSchema>){
 export async function POST(request:Request) {
   const db=getDb();
   try { const settings=getStoreSettings();if(settings.purchase_mode!=="site")throw new Error("BAD_REQUEST:As compras estão sendo finalizadas pelo WhatsApp");const user=await requireUser();assertRateLimitFor("create-order",String(user.id),10,10*60_000); const value=orderSchema.parse(await request.json());assertLegalAcceptance(value);const identity=validateCheckoutIdentity(value.checkout_identity);if(!identity.valid)throw new Error(`VALIDATION:Informe ${identity.missing.join(", ")}.`);
-    const fingerprint=orderFingerprint(value);
+    const fingerprint=orderFingerprint(value),shippingAddress=await resolveShippingAddress(value.shipping_address.zip_code);
     db.exec("BEGIN IMMEDIATE");
     if(value.idempotency_key){const existing=db.prepare("SELECT id,order_number,status,payment_status,idempotency_hash,subtotal_cents,discount_cents,shipping_cents,total_cents FROM orders WHERE customer_id=? AND idempotency_key=?").get(user.id,value.idempotency_key) as {id:number;order_number:string;status:string;payment_status:string;idempotency_hash:string|null;subtotal_cents:number;discount_cents:number;shipping_cents:number;total_cents:number}|undefined;
       if(existing&&existing.status==="pending"&&existing.payment_status==="pending"){
@@ -51,7 +51,7 @@ export async function POST(request:Request) {
     if(openOrders>=MAX_OPEN_ORDERS)throw new Error("CONFLICT:Você já tem pedidos aguardando pagamento. Conclua ou aguarde a expiração deles antes de criar outro.");
     const customer=db.prepare("SELECT id,name,email FROM customers WHERE id=?").get(user.id) as {id:number;name:string;email:string}|undefined; if(!customer)throw new Error("BAD_REQUEST:Cliente inválido");
     let subtotal=0; const resolved=value.items.map(item=>{const variant=db.prepare(`SELECT v.id,v.sku,v.size,v.color,v.stock,v.reserved_stock,COALESCE(v.price_cents,p.price_cents) AS price_cents,p.id AS product_id,p.category_id,p.name FROM product_variants v JOIN products p ON p.id=v.product_id WHERE v.id=? AND v.active=1 AND p.active=1 AND p.publication_status='active'`).get(item.variant_id) as {id:number;sku:string;size:string;color:string;stock:number;reserved_stock:number;price_cents:number;product_id:number;category_id:number;name:string}|undefined; if(!variant)throw new Error("BAD_REQUEST:Variação inválida"); if(variant.stock-variant.reserved_stock<item.quantity)throw new Error(`CONFLICT:Estoque insuficiente para ${variant.name}`); subtotal+=variant.price_cents*item.quantity; return {...item,...variant};});
-    const method:ShippingMethod=value.shipping_method==="Expressa"?"express":value.shipping_method==="Retirada"?"pickup":"standard",quote=calculateShipping(subtotal,value.shipping_address,method),shipping=quote.shipping_cents;
+    const method:ShippingMethod=value.shipping_method==="Expressa"?"express":value.shipping_method==="Retirada"?"pickup":"standard",quote=calculateShipping(subtotal,shippingAddress,method),shipping=quote.shipping_cents;
     const couponItems:CouponItem[]=resolved.map(item=>({product_id:item.product_id,category_id:item.category_id,price_cents:item.price_cents,quantity:item.quantity}));
     const selected=value.coupon_code?requireOwnedApplicableCoupon(db,user.id,value.coupon_code,couponItems,shipping,settings.pix_discount_percent):bestCoupon(db,user.id,couponItems,shipping,settings.pix_discount_percent),couponId=selected?.coupon.id||null;
     const couponReduction=selected||{productCents:0,shippingCents:0,totalCents:0},pixDiscount=value.payment_method==="pix"&&settings.pix_discount_percent>0?Math.round((subtotal-couponReduction.productCents)*settings.pix_discount_percent/100):0;

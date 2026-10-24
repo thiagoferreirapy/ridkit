@@ -9,6 +9,13 @@ test("home e catálogo funcionam no desktop e mobile",async({page})=>{
   await expect(page.getByRole("heading").first()).toBeVisible();
 });
 
+test("botão do card adiciona ao carrinho e abre o carrinho",async({page})=>{
+  await page.goto("/capacetes");
+  await page.locator("article").first().getByRole("button",{name:/Adicionar .* ao carrinho/}).click();
+  await expect(page).toHaveURL(/\/carrinho$/);
+  await expect(page.getByRole("button",{name:/Remover/}).first()).toBeVisible();
+});
+
 test("WhatsApp adiciona uma ação sem substituir o carrinho",async({page})=>{
   await page.route("**/api/store-settings",route=>route.fulfill({json:{data:{
     store_name:"Ridekit",purchase_mode:"whatsapp",whatsapp_number:"5511999999999",
@@ -18,7 +25,7 @@ test("WhatsApp adiciona uma ação sem substituir o carrinho",async({page})=>{
   }}}));
   await page.goto("/capacetes");
   const card=page.locator("article").first();
-  await expect(card.getByRole("link",{name:/Adicionar .* ao carrinho/})).toBeVisible();
+  await expect(card.getByRole("button",{name:/Adicionar .* ao carrinho/})).toBeVisible();
   const whatsapp=card.getByRole("link",{name:/Comprar .* pelo WhatsApp/});
   await expect(whatsapp).toBeVisible();
   await expect(whatsapp.locator('svg[data-icon="whatsapp"]')).toBeVisible();

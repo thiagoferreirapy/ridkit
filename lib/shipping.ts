@@ -1,4 +1,5 @@
 import { parseStoreDate } from "@/lib/store-time";
+import { lookupCep } from "@/lib/cep";
 import { getDb } from "@/lib/db";
 import { getStoreSettings } from "@/lib/store-settings";
 
@@ -8,6 +9,12 @@ export type FreeShippingRegion={id:number;name:string;cep_prefix:string|null;dis
 
 const normalize=(value?:string|null)=>(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLowerCase();
 const digits=(value?:string|null)=>(value||"").replace(/\D/g,"");
+
+// Free-shipping rules match on district/city/state, so those come from the CEP lookup, never from what the client typed.
+export async function resolveShippingAddress(zipCode:string):Promise<ShippingAddress>{
+  try{const found=await lookupCep(zipCode);return {zip_code:zipCode,district:found.district,city:found.city,state:found.state};}
+  catch{return {zip_code:zipCode};}
+}
 
 export function findFreeShippingRegion(address:ShippingAddress,method:ShippingMethod="standard",now=new Date()){
   if(method==="pickup")return null;

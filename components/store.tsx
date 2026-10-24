@@ -6,11 +6,12 @@ import { useFocusTrap } from "@/components/focus-trap";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight, Check, ChevronDown, ChevronRight, Heart, Menu, Minus, Package, Search,
-  ShieldCheck, ShoppingBag, SlidersHorizontal, Star, Truck, Headset, X, Plus,
+  ShieldCheck, ShoppingBag, SlidersHorizontal, Star, Truck, Headset, X, Plus, Mail, Phone,
 } from "lucide-react";
 import type { Product } from "@/lib/catalog";
 import { useShop, type CartItem } from "@/components/shop-state";
 import { WhatsAppIcon } from "@/components/whatsapp-icon";
+import { storeAddress } from "@/lib/store-info";
 
 const formatMoney=(cents:number)=>(cents/100).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 
@@ -56,7 +57,7 @@ export function Header() {
         </div>
         <div className="container-page flex h-16 items-center gap-3 md:h-[72px] md:gap-6">
           <button aria-label="Abrir menu" className="focus-ring rounded-lg p-2 md:hidden" onClick={() => setMenu(true)}><Menu size={22}/></button>
-          <Link href="/" className="mr-auto text-xl font-extrabold text-accent md:mr-0 md:w-[150px] md:text-2xl">RIDEKIT</Link>
+          <Link href="/" aria-label={`${settings.store_name} — página inicial`} className="mr-auto text-xl font-extrabold uppercase text-accent md:mr-0 md:w-[150px] md:text-2xl"><StoreLogo/></Link>
           <button onClick={() => setSearch(true)} className="focus-ring hidden h-11 flex-1 items-center gap-3 rounded-lg border border-line bg-white px-4 text-left text-sm text-muted transition-colors hover:border-[#bdbdbd] md:flex">
             <span className="flex-1">Buscar capacetes, marcas ou acessórios</span><Search size={18} className="text-accent"/>
           </button>
@@ -69,7 +70,7 @@ export function Header() {
       </header>
 
       <Overlay open={menu} onClose={() => setMenu(false)} side="left">
-        <div className="flex items-center justify-between"><b className="text-xl font-extrabold text-accent">RIDEKIT</b><Close onClick={() => setMenu(false)}/></div>
+        <div className="flex items-center justify-between"><b className="text-xl font-extrabold uppercase text-accent"><StoreLogo/></b><Close onClick={() => setMenu(false)}/></div>
         <p className="mb-1 mt-6 text-xs font-bold text-muted">Comprar</p>
         <div className="grid">{navigation.categories.slice(0,5).map(item=><Link onClick={()=>setMenu(false)} className={menuLink} href={`/capacetes?category=${encodeURIComponent(item.slug)}`} key={item.slug}>{item.name}<ChevronRight size={16} className="text-muted"/></Link>)}{navigation.categories.length>5&&<Link onClick={()=>setMenu(false)} className="py-3 text-sm font-semibold text-brand" href="/categorias">Ver todas as categorias</Link>}{navigation.hasOffers&&<Link onClick={()=>setMenu(false)} className={menuLink} href="/ofertas">Ofertas<ChevronRight size={16} className="text-muted"/></Link>}{navigation.hasLaunches&&<Link onClick={()=>setMenu(false)} className={menuLink} href="/lancamentos">Lançamentos<ChevronRight size={16} className="text-muted"/></Link>}<Link onClick={()=>setMenu(false)} className={menuLink} href="/marcas">Marcas<ChevronRight size={16} className="text-muted"/></Link></div>
         <p className="mb-1 mt-6 text-xs font-bold text-muted">Sua conta</p>
@@ -113,7 +114,8 @@ function ProductVisual({tone="from-zinc-950 to-zinc-700", className="", image, r
 }
 
 export function ProductCard({product, compact=false}:{product:Product;compact?:boolean}) {
-  const {toggleFavorite,isFavorite,busy,settings}=useShop(); const favorite=isFavorite(product.id);
+  const {toggleFavorite,isFavorite,busy,settings,addToCart}=useShop(); const favorite=isFavorite(product.id);
+  const router=useRouter(); const [adding,setAdding]=useState(false);
   const [storeOrigin,setStoreOrigin]=useState("");
   useEffect(()=>setStoreOrigin(window.location.origin),[]);
   const outOfStock=product.availableStock===0;
@@ -134,6 +136,8 @@ export function ProductCard({product, compact=false}:{product:Product;compact?:b
     "",
     "Gostaria de confirmar o tamanho e a disponibilidade para compra.",
   ].filter(Boolean).join("\n");
+  // shortcut: adds the first size in stock and opens the cart; replace with a size picker on the card.
+  const quickAdd=async()=>{setAdding(true);try{const response=await fetch(`/api/products/${product.slug}`);const variants=response.ok?((await response.json()).data.variants as {id:number;stock:number;reserved_stock:number;active:number}[]):[];const variant=variants.find(item=>item.active&&item.stock-item.reserved_stock>0);router.push(variant&&await addToCart(variant.id)?"/carrinho":`/produto/${product.slug}`);}catch{router.push(`/produto/${product.slug}`);}finally{setAdding(false);}};
   const whatsappHref=`https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(whatsappMessage)}`;
   return <article className="card card-hover group flex flex-col overflow-hidden">
       <div className="relative"><Link href={`/produto/${product.slug}`} className="block"><ProductVisual rounded={false} tone={product.tone} image={product.image} alt={`${product.brand} ${product.name}`} className={`${compact?"aspect-square":"aspect-[1.1]"} ${outOfStock?"opacity-60 grayscale":""}`}/></Link>{outOfStock?<span className="absolute left-2 top-2 rounded bg-ink px-2 py-0.5 text-[11px] font-bold text-white">Sem estoque</span>:product.tag&&<span className="absolute left-2 top-2 rounded bg-white px-2 py-0.5 text-[11px] font-bold text-ink shadow-sm">{product.tag}</span>}<button disabled={!product.id||busy} onClick={()=>product.id&&toggleFavorite(product.id)} aria-label={favorite?`Remover ${product.name} dos favoritos`:`Adicionar ${product.name} aos favoritos`} aria-pressed={favorite} className={`focus-ring absolute right-2 top-2 grid size-9 place-items-center rounded-full bg-white shadow-sm transition-colors ${favorite?"text-accent":"text-muted hover:text-accent"}`}><Heart size={17} className={favorite?"fill-current":""}/></button></div>
@@ -145,15 +149,19 @@ export function ProductCard({product, compact=false}:{product:Product;compact?:b
       <p className="text-xs text-muted">{settings.max_installments}x sem juros · {settings.pix_discount_percent}% no Pix</p>
       {product.sizes&&product.sizes.length>0&&<div className="mt-2 flex flex-wrap gap-1" aria-label="Tamanhos disponíveis">{product.sizes.map(size=><span key={size} className="rounded border border-line px-1.5 text-[11px] leading-5 text-muted">{size.replace(" / ","/")}</span>)}</div>}
     </Link>
-    {outOfStock?<div className="mt-auto pt-3"><div aria-disabled="true" className="flex min-h-10 w-full items-center justify-center rounded-lg bg-canvas px-3 text-sm font-semibold text-muted">Indisponível</div></div>:<div className="mt-auto grid gap-2 pt-3"><Link href={`/produto/${product.slug}`} aria-label={`Adicionar ${product.name} ao carrinho`} className="focus-ring flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-accent px-3 text-sm font-bold text-white transition-colors hover:bg-accent-strong"><ShoppingBag size={17}/>Adicionar ao carrinho</Link>{whatsappEnabled&&<a href={whatsappHref} target="_blank" rel="noopener noreferrer" aria-label={`Comprar ${product.name} pelo WhatsApp`} className="focus-ring flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#0f7a35] px-3 text-sm font-bold text-white transition-colors hover:bg-[#1fb958]"><WhatsAppIcon className="size-[18px] shrink-0"/>Comprar pelo WhatsApp</a>}</div>}
+    {outOfStock?<div className="mt-auto pt-3"><div aria-disabled="true" className="flex min-h-10 w-full items-center justify-center rounded-lg bg-canvas px-3 text-sm font-semibold text-muted">Indisponível</div></div>:<div className="mt-auto grid gap-2 pt-3"><button type="button" disabled={adding} onClick={quickAdd} aria-label={`Adicionar ${product.name} ao carrinho`} className="focus-ring flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-accent px-3 text-sm font-bold text-white transition-colors hover:bg-accent-strong disabled:opacity-70"><ShoppingBag size={17}/>{adding?"Adicionando…":"Adicionar ao carrinho"}</button>{whatsappEnabled&&<a href={whatsappHref} target="_blank" rel="noopener noreferrer" aria-label={`Comprar ${product.name} pelo WhatsApp`} className="focus-ring flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#0f7a35] px-3 text-sm font-bold text-white transition-colors hover:bg-[#1fb958]"><WhatsAppIcon className="size-[18px] shrink-0"/>Comprar pelo WhatsApp</a>}</div>}
     </div>
   </article>;
 }
 
 export function ProductGrid({products, compact=false}:{products:Product[];compact?:boolean}) { return <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-4">{products.map(p=><ProductCard product={p} compact={compact} key={p.id??p.slug}/>)}</div>; }
 
+// Logo uploaded in Admin → Dados da loja, or the store name as text.
+function StoreLogo(){const {settings}=useShop();return settings.logo_url?<img src={settings.logo_url} alt={settings.store_name} className="h-8 w-auto max-w-[150px] object-contain md:h-9"/>:<>{settings.store_name}</>;}
+
 export function Footer() {
-  const navigation=useNavigationCatalog();
+  const navigation=useNavigationCatalog();const {settings}=useShop();
+  const address=storeAddress(settings),socials=([["Instagram",settings.instagram_url],["Facebook",settings.facebook_url],["TikTok",settings.tiktok_url],["YouTube",settings.youtube_url]] as const).filter(([,url])=>url);
   const categoryLinks:[string,string][]=navigation.categories.slice(0,5).map(item=>[item.name,`/capacetes?category=${encodeURIComponent(item.slug)}`]);
   if(navigation.categories.length>5)categoryLinks.push(["Todas as categorias","/categorias"]);
   return <footer className="mt-12 border-t border-line bg-white md:mt-16">
@@ -161,11 +169,13 @@ export function Footer() {
       <div className="grid grid-cols-2 gap-8 md:grid-cols-[1fr_1fr_1fr_1.6fr] md:gap-10">
         <div><FooterColumn title="Comprar" links={categoryLinks}/><div className="mt-3 grid gap-2 text-sm text-muted">{navigation.hasOffers&&<Link className="hover:text-accent hover:underline" href="/ofertas">Ofertas</Link>}{navigation.hasLaunches&&<Link className="hover:text-accent hover:underline" href="/lancamentos">Lançamentos</Link>}<Link className="hover:text-accent hover:underline" href="/marcas">Marcas</Link></div></div>
         <FooterColumn title="Ajuda" links={[["Central de ajuda","/ajuda"],["Trocas e devoluções","/ajuda/devolucoes"],["Guia de tamanho","/guia-de-tamanho"],["Rastrear pedido","/conta/pedidos"],["Fale conosco","/contato"]]}/>
-        <FooterColumn title="Ridekit" links={[["Sobre a loja","/sobre"],["Frete e entrega","/entrega"],["Garantia","/garantia"],["Política de privacidade","/privacidade"],["Termos de uso","/termos"]]}/>
+        <FooterColumn title={settings.store_name} links={[["Sobre a loja","/sobre"],["Frete e entrega","/entrega"],["Garantia","/garantia"],["Política de privacidade","/privacidade"],["Termos de uso","/termos"]]}/>
         <NewsletterSignup/>
       </div>
       <div className="mt-10 flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-6 text-xs text-muted"><span className="inline-flex items-center gap-1.5"><ShieldCheck size={14}/> Compra segura</span><span>Nota fiscal</span><span>Troca em até 7 dias</span><span>Pix e cartão</span><span>Entrega para todo o Brasil</span></div>
-      <p className="mt-6 text-xs text-muted">© {new Date().getFullYear()} Ridekit. Todos os direitos reservados.</p>
+      {(settings.support_email||settings.phone||socials.length>0)&&<div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted">{settings.support_email&&<a className="inline-flex items-center gap-1.5 hover:text-accent" href={`mailto:${settings.support_email}`}><Mail size={14}/>{settings.support_email}</a>}{settings.phone&&<a className="inline-flex items-center gap-1.5 hover:text-accent" href={`tel:+${settings.phone.replace(/\D/g,"").replace(/^(?=\d{10,11}$)/,"55")}`}><Phone size={14}/>{settings.phone}</a>}{socials.map(([name,url])=><a key={name} className="hover:text-accent hover:underline" href={url} target="_blank" rel="noopener noreferrer">{name}</a>)}</div>}
+      <p className="mt-6 text-xs text-muted">© {new Date().getFullYear()} {settings.legal_name||settings.store_name}{settings.cnpj&&` · CNPJ ${settings.cnpj}`}. Todos os direitos reservados.</p>
+      {address&&<p className="mt-1 text-xs text-muted">{address}</p>}
     </div>
   </footer>;
 }

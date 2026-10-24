@@ -18,7 +18,7 @@ export type Product = {
 
 export const adminSections = [
     "Dashboard", "Produtos", "Categorias", "Tabela de medidas", "Marcas", "Estoque", "Pedidos", "Frete regional", "Vendas WhatsApp",
-    "Clientes", "Cupons", "Avaliações", "Banners", "Mensagens", "Campanhas", "E-mails", "Newsletter", "Segurança", "Configurações", "Equipe",
+    "Clientes", "Cupons", "Avaliações", "Banners", "Mensagens", "Campanhas", "E-mails", "Newsletter", "Segurança", "Dados da loja", "Configurações", "Equipe",
 ];
 
 export const routeMap = [
@@ -38,5 +38,5 @@ export const routeMap = [
   ["/admin/produtos", "Admin produtos"], ["/admin/produtos/editar", "Admin editar produto"],
   ["/admin/estoque", "Admin estoque"], ["/admin/pedidos", "Admin pedidos"], ["/admin/frete-regional", "Admin frete regional"],
   ["/admin/clientes", "Admin clientes e cupons"], ["/admin/categorias", "Admin categorias e marcas"],
-  ["/admin/avaliacoes", "Admin avaliações"], ["/admin/configuracoes", "Admin configurações"],
+  ["/admin/avaliacoes", "Admin avaliações"], ["/admin/dados-da-loja", "Admin dados da loja"], ["/admin/configuracoes", "Admin configurações"],
 ] as const;

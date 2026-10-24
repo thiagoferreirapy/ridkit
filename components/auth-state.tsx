@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { safeNextPath } from "@/lib/client-utils";
 
@@ -16,11 +16,12 @@ export async function fetchWithRefresh(url:string,init?:RequestInit){const respo
 export function AuthProvider({children}:{children:React.ReactNode}){
   const router=useRouter();const [user,setUser]=useState<AuthUser|null>(null);const [loading,setLoading]=useState(true);
   useEffect(()=>{let active=true;(async()=>{let response=await fetch("/api/auth/me");if(response.status===401){const refresh=await fetch("/api/auth/refresh",{method:"POST"});if(refresh.ok)response=await fetch("/api/auth/me");}if(active&&response.ok)setUser((await response.json()).data.user);if(active)setLoading(false);})();return()=>{active=false;};},[]);
-  const login=async(value:Credentials,next="/")=>{const data=await payload(await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(value)}));setUser(data.user);sessionStorage.setItem("ridekit-auth-welcome",JSON.stringify({kind:"login",name:data.user.name}));router.push(safeNextPath(next));router.refresh();};
-  const register=async(value:Registration)=>{const data=await payload(await fetch("/api/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(value)}));return {requiresVerification:Boolean(data.requires_verification),email:String(data.email),emailSent:Boolean(data.email_sent)};};
-  const logout=async()=>{await fetch("/api/auth/logout",{method:"POST"});setUser(null);router.push("/login");router.refresh();};
-  const finishAccountClosure=()=>{setUser(null);localStorage.removeItem("ridekit-session-id");router.refresh();};
-  const authFetch=async(url:string,init?:RequestInit)=>{const response=await fetchWithRefresh(url,init);if(response.status===401)setUser(null);return response;};
-  return <AuthContext.Provider value={{user,loading,login,register,logout,finishAccountClosure,authFetch}}>{children}</AuthContext.Provider>;
+  const login=useCallback(async(value:Credentials,next="/")=>{const data=await payload(await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(value)}));setUser(data.user);sessionStorage.setItem("ridekit-auth-welcome",JSON.stringify({kind:"login",name:data.user.name}));router.push(safeNextPath(next));router.refresh();},[router]);
+  const register=useCallback(async(value:Registration)=>{const data=await payload(await fetch("/api/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(value)}));return {requiresVerification:Boolean(data.requires_verification),email:String(data.email),emailSent:Boolean(data.email_sent)};},[]);
+  const logout=useCallback(async()=>{await fetch("/api/auth/logout",{method:"POST"});setUser(null);router.push("/login");router.refresh();},[router]);
+  const finishAccountClosure=useCallback(()=>{setUser(null);localStorage.removeItem("ridekit-session-id");router.refresh();},[router]);
+  const authFetch=useCallback(async(url:string,init?:RequestInit)=>{const response=await fetchWithRefresh(url,init);if(response.status===401)setUser(null);return response;},[]);
+  const value=useMemo(()=>({user,loading,login,register,logout,finishAccountClosure,authFetch}),[user,loading,login,register,logout,finishAccountClosure,authFetch]);
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 export function useAuth(){const value=useContext(AuthContext);if(!value)throw new Error("useAuth deve ser usado dentro de AuthProvider");return value;}

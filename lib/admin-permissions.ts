@@ -27,7 +27,7 @@ export const rolePermissionDefaults:Record<AdminRole,AdminPermission[]> = {
 const sectionPermissions:Record<string,AdminPermission>={
   Dashboard:"dashboard.view",Produtos:"catalog.view",Categorias:"catalog.view","Tabela de medidas":"catalog.view",Marcas:"catalog.view",Banners:"catalog.view",
   Estoque:"inventory.view",Pedidos:"orders.view","Frete regional":"orders.manage","Vendas WhatsApp":"customers.view",Clientes:"customers.view",Avaliações:"customers.view",Mensagens:"customers.view",
-  Cupons:"marketing.view",Campanhas:"marketing.view","E-mails":"marketing.view",Newsletter:"marketing.view",Segurança:"dashboard.view",Configurações:"settings.manage",Equipe:"admins.manage",
+  Cupons:"marketing.view",Campanhas:"marketing.view","E-mails":"marketing.view",Newsletter:"marketing.view",Segurança:"dashboard.view","Dados da loja":"settings.manage",Configurações:"settings.manage",Equipe:"admins.manage",
 };
 export const permissionForAdminSection=(section:string)=>sectionPermissions[section]||"dashboard.view";
 export const hasAdminPermission=(permissions:string[]|undefined,permission:AdminPermission)=>Boolean(permissions?.includes(permission));

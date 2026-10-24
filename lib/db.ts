@@ -19,6 +19,34 @@ export function getDb() {
 // Shared by the app, scripts and tests so every entry point sees the same schema.
 export function initializeDatabase(db: DatabaseSync, schemaPath = path.join(process.cwd(), "data", "schema.sql")) {
     db.exec(fs.readFileSync(schemaPath, "utf8"));
+    upgradeLegacySchema(db);
+    applyMigrations(db, path.join(path.dirname(schemaPath), "migrations"));
+    return db;
+}
+
+// Numbered migrations: data/migrations/NNN-description.sql, applied once each and recorded in schema_migrations.
+// Version 1 is the baseline schema.sql; new schema changes go in a new file instead of upgradeLegacySchema.
+export function applyMigrations(db: DatabaseSync, dir: string) {
+    if (!fs.existsSync(dir)) return;
+    const applied = new Set((db.prepare("SELECT version FROM schema_migrations").all() as { version:number }[]).map(item => item.version));
+    const files = fs.readdirSync(dir).filter(name => /^\d+-.+\.sql$/.test(name)).sort((a, b) => parseInt(a) - parseInt(b));
+    for (const file of files) {
+        const version = parseInt(file);
+        if (applied.has(version)) continue;
+        db.exec("BEGIN IMMEDIATE");
+        try {
+            db.exec(fs.readFileSync(path.join(dir, file), "utf8"));
+            db.prepare("INSERT INTO schema_migrations(version) VALUES(?)").run(version);
+            db.exec("COMMIT");
+        } catch (error) {
+            db.exec("ROLLBACK");
+            throw new Error(`Migração ${file} falhou: ${(error as Error).message}`);
+        }
+    }
+}
+
+// Idempotent catch-up for databases created before numbered migrations existed. Do not add to it.
+function upgradeLegacySchema(db: DatabaseSync) {
     const categoryColumns = db.prepare("PRAGMA table_info(categories)").all() as { name:string }[];
     if (!categoryColumns.some(column => column.name === "variation_type")) db.exec("ALTER TABLE categories ADD COLUMN variation_type TEXT NOT NULL DEFAULT 'none' CHECK(variation_type IN ('none','size','option'))");
     if (!categoryColumns.some(column => column.name === "variation_label")) db.exec("ALTER TABLE categories ADD COLUMN variation_label TEXT");
@@ -96,7 +124,6 @@ export function initializeDatabase(db: DatabaseSync, schemaPath = path.join(proc
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_idempotency ON orders(customer_id,idempotency_key) WHERE idempotency_key IS NOT NULL");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_provider_payment_id ON orders(provider_payment_id) WHERE provider_payment_id IS NOT NULL");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_asaas_customer_id ON customers(asaas_customer_id) WHERE asaas_customer_id IS NOT NULL");
-    return db;
 }
 
 export function rows<T>(sql: string, ...params: (string | number | null)[]) {
